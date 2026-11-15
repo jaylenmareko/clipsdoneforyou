@@ -246,6 +246,17 @@
   .curtag{display:inline-block;background:var(--ok);color:#fff;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:var(--r-pill);margin-left:8px;vertical-align:middle}
   @media(max-width:640px){.apptabs button{padding:7px 10px;font-size:13px}.appbar .wordmark{font-size:14px}}
 
+  .auth-err{background:var(--coral-soft);color:var(--coral-dk);border:1px solid rgba(255,90,78,.25);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;margin-bottom:12px}
+  .sethead{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--mut-2);margin:22px 0 10px}
+  .sethead:first-child{margin-top:4px}
+  #setupBody .setrow.col{flex-direction:column;align-items:stretch;gap:10px}
+  #setupBody textarea{width:100%;min-height:70px;font:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--soft-2);resize:vertical;color:var(--ink)}
+  #setupBody textarea:focus{outline:none;border-color:var(--coral);box-shadow:0 0 0 3px rgba(255,90,78,.12)}
+  .toggle{border:1px solid var(--line-2);background:#fff;color:var(--ink-2);padding:8px 16px;border-radius:var(--r-pill);font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+  .toggle.on{background:var(--ok);border-color:var(--ok);color:#fff}
+  .savednote{font-size:12.5px;color:var(--ok);font-weight:700;margin-left:10px;opacity:0;transition:opacity .2s var(--ease)}
+  .savednote.show{opacity:1}
+
   /* ---------- responsive ---------- */
   @media(max-width:860px){
     .steps,.plans{grid-template-columns:1fr}
@@ -425,23 +436,17 @@
   <div class="aview" data-view="clips" hidden>
     <h2>Your clips</h2>
     <p class="sub2">One folder per source video. Your clips land here as they're made.</p>
-    <div class="foldergrid">
-      <div class="folder"><div class="fthumb"></div><b>Podcast Ep. 12 — full episode</b><span>3 clips · 2 posted · 1 banked</span></div>
-      <div class="folder"><div class="fthumb" style="background:linear-gradient(135deg,#d8b89a,#b58a63)"></div><b>Live Q&amp;A — Saturday stream</b><span>3 clips · 3 posted</span></div>
-      <div class="folder"><div class="fthumb" style="background:linear-gradient(135deg,#9fb3a2,#6f846f)"></div><b>Interview — the big debate</b><span>2 clips · 2 banked</span></div>
+    <div class="foldergrid" id="folderGrid"></div>
+    <div id="clipsEmpty" class="connectcard" style="text-align:center" hidden>
+      <b>No clips yet</b>
+      <p style="margin:6px 0 0">Connect a channel and your clips will land here.</p>
     </div>
   </div>
 
   <div class="aview" data-view="setup" hidden>
     <h2>Setup</h2>
     <p class="sub2">Your account and per-channel settings.</p>
-    <div class="setrow"><div><b>Account</b><p id="acctLine">Signed in</p></div></div>
-    <div class="setrow"><div><b>YouTube Shorts length</b><p>Applies to your YouTube channel only</p></div>
-      <select><option>Auto (30–105s)</option><option>Under 30s</option><option>30–60s</option><option>60–90s</option><option>90–180s</option></select></div>
-    <div class="setrow"><div><b>Daily pace</b><p>Clips cut per day</p></div>
-      <select><option>3 per day</option><option>5 per day</option><option>6 per day</option></select></div>
-    <div class="setrow"><div><b>Posting</b><p>Pause or resume everything</p></div>
-      <button class="connbtn" id="pauseBtn">Pause</button></div>
+    <div id="setupBody"></div>
   </div>
 
   <div class="aview" data-view="billing" hidden>
@@ -474,7 +479,8 @@
       <div class="field" id="firstNameField"><label>First name</label><input id="authFirstName" type="text" placeholder="Jordan" autocomplete="given-name"></div>
       <div class="field"><label>Email</label><input id="authEmail" type="email" placeholder="you@email.com" autocomplete="email"></div>
       <div class="field"><label>Password</label><input id="authPassword" type="password" placeholder="••••••••" autocomplete="new-password"></div>
-      <button class="btn coral wiz-cta" id="authContinue" data-next>Continue <span class="ar">→</span></button>
+      <div id="authErr" class="auth-err" hidden></div>
+      <button class="btn coral wiz-cta" id="authContinue">Continue <span class="ar">→</span></button>
       <div class="wiz-foot" id="authFoot">Already have an account? <a href="#" data-auth-mode="login">Log in</a></div>
     </div>
 
@@ -502,136 +508,150 @@
 
 <script>
 (function(){
-  // header shadow on scroll
-  var hd=document.querySelector('header');
-  var onScroll=function(){hd.classList.toggle('scrolled',window.scrollY>8)};
+  'use strict';
+  var $=function(s,r){return (r||document).querySelector(s);};
+  var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));};
+
+  // ---- header shadow + scroll reveal (landing) ----
+  var hd=$('header');
+  var onScroll=function(){hd.classList.toggle('scrolled',window.scrollY>8);};
   onScroll();window.addEventListener('scroll',onScroll,{passive:true});
-
-  // scroll reveal
   if('IntersectionObserver' in window){
-    var io=new IntersectionObserver(function(es){
-      es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}});
-    },{threshold:.12,rootMargin:'0px 0px -8% 0px'});
-    document.querySelectorAll('.reveal').forEach(function(el,i){
-      el.style.transitionDelay=(Math.min(i,6)*45)+'ms';io.observe(el);
-    });
-  }else{document.querySelectorAll('.reveal').forEach(function(el){el.classList.add('in')});}
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.12,rootMargin:'0px 0px -8% 0px'});
+    $$('.reveal').forEach(function(el,i){el.style.transitionDelay=(Math.min(i,6)*45)+'ms';io.observe(el);});
+  }else{$$('.reveal').forEach(function(el){el.classList.add('in');});}
 
-  // wizard
-  var modal=document.getElementById('wiz');
-  var panes=modal.querySelectorAll('[data-pane]');
-  var dots=modal.querySelectorAll('.prog i');
-  var cur=1;
-  function show(n){
-    cur=n;
-    panes.forEach(function(p){p.hidden=(+p.dataset.pane!==n)});
-    dots.forEach(function(d,i){d.classList.toggle('on',i<n)});
+  // ---- tiny API helper ----
+  function api(path,method,body){
+    return fetch(path,{method:method||'GET',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined})
+      .then(function(r){return r.json().catch(function(){return {};}).then(function(d){return {status:r.status,data:d};});});
   }
-  function close(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.style.overflow='';}
 
-  // auth mode (signup vs login) on step 1
+  // ---- app state ----
+  var S=null;          // /api/me payload for the signed-in user
+  var connected={};    // platform -> {handle,...} from /api/status
+
+  // =========================================================
+  // Wizard (signup / login)
+  // =========================================================
+  var modal=$('#wiz');
+  var panes=$$('[data-pane]',modal);
+  var dots=$$('.prog i',modal);
+  var cur=1;
+  function show(n){cur=n;panes.forEach(function(p){p.hidden=(+p.dataset.pane!==n);});dots.forEach(function(d,i){d.classList.toggle('on',i<n);});}
+  function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.style.overflow='';}
+
   var authMode='signup';
-  var authTitle=document.getElementById('authTitle');
-  var authSub=document.getElementById('authSub');
-  var authStepNo=document.getElementById('authStepNo');
-  var authContinue=document.getElementById('authContinue');
-  var authFoot=document.getElementById('authFoot');
-  var authPassword=document.getElementById('authPassword');
-  var firstNameField=document.getElementById('firstNameField');
-  var doneTitle=document.getElementById('doneTitle');
-  var doneSub=document.getElementById('doneSub');
-  function setDone(title,sub){doneTitle.textContent=title;doneSub.textContent=sub;}
+  var authTitle=$('#authTitle'),authSub=$('#authSub'),authStepNo=$('#authStepNo'),
+      authContinue=$('#authContinue'),authFoot=$('#authFoot'),authPassword=$('#authPassword'),
+      firstNameField=$('#firstNameField'),authErr=$('#authErr'),
+      doneTitle=$('#doneTitle'),doneSub=$('#doneSub');
+  function setDone(t,s){doneTitle.textContent=t;doneSub.textContent=s;}
+  function err(m){if(!m){authErr.hidden=true;authErr.textContent='';return;}authErr.hidden=false;authErr.textContent=m;}
   function setAuthMode(mode){
-    authMode=mode;
-    modal.querySelectorAll('[data-auth-mode]').forEach(function(b){
-      if(b.tagName==='BUTTON')b.classList.toggle('on',b.dataset.authMode===mode);
-    });
+    authMode=mode;err('');
+    $$('[data-auth-mode]',modal).forEach(function(b){if(b.tagName==='BUTTON')b.classList.toggle('on',b.dataset.authMode===mode);});
     var login=(mode==='login');
     firstNameField.hidden=login;
-    authTitle.textContent=login?"Welcome back":"Create your account";
-    authSub.textContent=login?"Log in to manage your clips.":"10 posted clips on us. No card required.";
-    authStepNo.textContent=login?"Log in":"Step 1 of 3";
+    authTitle.textContent=login?'Welcome back':'Create your account';
+    authSub.textContent=login?'Log in to manage your clips.':'10 posted clips on us. No card required.';
+    authStepNo.textContent=login?'Log in':'Step 1 of 3';
     authContinue.innerHTML=login?'Log in <span class="ar">→</span>':'Continue <span class="ar">→</span>';
     authPassword.setAttribute('autocomplete',login?'current-password':'new-password');
     authFoot.innerHTML=login?'New here? <a href="#" data-auth-mode="signup">Create an account</a>':'Already have an account? <a href="#" data-auth-mode="login">Log in</a>';
   }
-  function open(mode){modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';setAuthMode(mode||'signup');show(1);}
+  function openModal(mode){modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';setAuthMode(mode||'signup');show(1);}
 
-  document.querySelectorAll('[data-wiz]').forEach(function(el){
-    el.addEventListener('click',function(e){e.preventDefault();open('signup');});
+  $$('[data-wiz]').forEach(function(el){el.addEventListener('click',function(e){e.preventDefault();openModal('signup');});});
+  $$('[data-login]').forEach(function(el){el.addEventListener('click',function(e){e.preventDefault();openModal('login');});});
+  modal.addEventListener('click',function(e){var t=e.target.closest('[data-auth-mode]');if(t){e.preventDefault();setAuthMode(t.dataset.authMode);}});
+  $$('[data-close]',modal).forEach(function(el){el.addEventListener('click',closeModal);});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&modal.classList.contains('open'))closeModal();});
+
+  // step 1 = real signup / login
+  authContinue.addEventListener('click',function(){
+    var email=$('#authEmail').value.trim(),pass=$('#authPassword').value,first=$('#authFirstName').value.trim();
+    if(authMode==='signup'){if(!first||!email||pass.length<6){err('Enter your name, a valid email, and a 6+ character password.');return;}}
+    else{if(!email||!pass){err('Enter your email and password.');return;}}
+    authContinue.disabled=true;var label=authContinue.innerHTML;authContinue.textContent='…';
+    var path=authMode==='signup'?'/api/signup':'/api/login';
+    var payload=authMode==='signup'?{firstName:first,email:email,password:pass}:{email:email,password:pass};
+    api(path,'POST',payload).then(function(res){
+      authContinue.disabled=false;authContinue.innerHTML=label;
+      if(res.status===200){return refreshState().then(function(){if(authMode==='login'){closeModal();enterApp();}else{show(2);}});}
+      var e=res.data&&res.data.error;
+      if(e==='email_taken')err('That email already has an account — log in instead.');
+      else if(e==='invalid_credentials')err('Wrong email or password.');
+      else if(e==='not_configured')err('Accounts aren’t switched on yet (database not connected).');
+      else if(e==='bad_request')err('Check your details and try again.');
+      else err('Something went wrong — please try again.');
+    }).catch(function(){authContinue.disabled=false;authContinue.innerHTML=label;err('Network error — please try again.');});
   });
-  document.querySelectorAll('[data-login]').forEach(function(el){
-    el.addEventListener('click',function(e){e.preventDefault();open('login');});
-  });
-  modal.addEventListener('click',function(e){
-    var t=e.target.closest('[data-auth-mode]');
-    if(t){e.preventDefault();setAuthMode(t.dataset.authMode);}
-  });
-  modal.querySelectorAll('[data-close]').forEach(function(el){el.addEventListener('click',close)});
-  modal.querySelectorAll('[data-next]').forEach(function(el){
-    el.addEventListener('click',function(){
-      if(cur===1&&authMode==='login'){setDone("Welcome back.","You are logged in. Steer everything from the chat.");show(3);return;}
-      if(cur===2){setDone("You're live.","Clips start posting today. Steer everything from the chat.");}
-      show(Math.min(cur+1,3));
-    });
-  });
-  modal.querySelectorAll('[data-chip]').forEach(function(c){
-    c.addEventListener('click',function(){c.classList.toggle('on');});
-  });
-  // app shell
-  var app=document.getElementById('app');
-  var landingEls=document.querySelectorAll('header, .hero, section, footer');
-  function enterApp(){
-    close();
+
+  // step 2 -> step 3 (real connecting happens on the in-app card)
+  $$('[data-next]',modal).forEach(function(el){el.addEventListener('click',function(){if(cur===2){setDone("You're live.","Clips start posting today. Steer everything from the chat.");}show(Math.min(cur+1,3));});});
+  $$('[data-chip]',modal).forEach(function(c){c.addEventListener('click',function(){c.classList.toggle('on');});});
+  $('#enterAppBtn').addEventListener('click',function(){closeModal();enterApp();});
+
+  // =========================================================
+  // App shell
+  // =========================================================
+  var app=$('#app');
+  var landingEls=$$('header, .hero, section, footer');
+  var tabBtns=$$('[data-tab]',app);
+  var views=$$('[data-view]',app);
+  function showTab(name){
+    tabBtns.forEach(function(x){x.classList.toggle('on',x.dataset.tab===name);});
+    views.forEach(function(v){v.hidden=(v.dataset.view!==name);});
+    if(name==='clips')renderClips();
+    if(name==='setup')renderSetup();
+    if(name==='billing')renderBilling();
+  }
+  tabBtns.forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab);});});
+
+  function enterApp(tab){
+    if(!S||!S.authenticated){openModal('login');return;}
+    closeModal();
     landingEls.forEach(function(el){el.style.display='none';});
     app.hidden=false;
-    app.querySelectorAll('[data-tab]').forEach(function(x){x.classList.toggle('on',x.dataset.tab==='chat');});
-    app.querySelectorAll('[data-view]').forEach(function(v){v.hidden=(v.dataset.view!=='chat');});
-    var em=document.getElementById('authEmail').value;
-    if(em)document.getElementById('acctLine').textContent='Signed in as '+em;
-    if(typeof markConnected==='function')markConnected();
+    renderChatHistory();renderFreePill();renderConnectCard();
+    showTab(tab||'chat');
     window.scrollTo(0,0);
   }
-  function exitApp(){
-    app.hidden=true;
-    landingEls.forEach(function(el){el.style.display='';});
-    window.scrollTo(0,0);
+  function exitApp(){app.hidden=true;landingEls.forEach(function(el){el.style.display='';});window.scrollTo(0,0);}
+  $$('[data-signout]',app).forEach(function(b){b.addEventListener('click',function(){api('/api/logout','POST').then(function(){S=null;connected={};exitApp();});});});
+
+  function refreshState(){return api('/api/me').then(function(res){S=res.data;return S;});}
+  function userId(){return S&&S.user?S.user.id:null;}
+
+  function renderFreePill(){
+    var el=$('#freePill');if(!el||!S||!S.user)return;
+    if(S.user.plan&&S.user.plan!=='free')el.textContent=S.user.plan+' plan active';
+    else if(S.user.paused)el.textContent='Posting paused';
+    else el.textContent=S.user.freeClipsLeft+' free clips left';
   }
-  document.getElementById('enterAppBtn').addEventListener('click',enterApp);
-  app.querySelectorAll('[data-signout]').forEach(function(b){b.addEventListener('click',exitApp);});
-  var tabBtns=app.querySelectorAll('[data-tab]');
-  var views=app.querySelectorAll('[data-view]');
-  tabBtns.forEach(function(b){b.addEventListener('click',function(){
-    tabBtns.forEach(function(x){x.classList.toggle('on',x===b);});
-    views.forEach(function(v){v.hidden=(v.dataset.view!==b.dataset.tab);});
-  });});
-  var connBtns=app.querySelectorAll('[data-conn]');
-  var connMsg=document.getElementById('connMsg');
-  function cdfyUser(){
-    var u=localStorage.getItem('cdfy_username');
-    if(u)return u;
-    var em=(document.getElementById('authEmail').value||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
-    u=em||('u-'+Math.random().toString(36).slice(2,10));
-    localStorage.setItem('cdfy_username',u);
-    return u;
-  }
-  function markConnected(){
-    fetch('/api/status?username='+encodeURIComponent(cdfyUser())).then(function(r){return r.json();}).then(function(d){
-      if(!d||!d.connected)return;
+
+  // ---- connect card (Chat) ----
+  var connBtns=$$('[data-conn]',app);
+  var connMsg=$('#connMsg');
+  function renderConnectCard(){
+    if(!userId())return;
+    api('/api/status?username='+encodeURIComponent(userId())).then(function(res){
+      var d=res.data||{};connected=d.connected||{};
       var n=0;
       connBtns.forEach(function(b){
-        var c=d.connected[b.dataset.platform];
+        var c=connected[b.dataset.platform];
         if(c){b.classList.add('done');b.textContent='Connected'+(c.handle?' · '+c.handle:'');n++;}
         else{b.classList.remove('done');b.textContent='Connect';}
       });
-      document.getElementById('connCount').textContent=n+' of 3 connected';
+      var cc=$('#connCount');if(cc)cc.textContent=n+' of 3 connected';
     }).catch(function(){});
   }
   connBtns.forEach(function(b){b.addEventListener('click',function(){
-    if(b.classList.contains('done'))return;
-    b.textContent='Opening…';
-    fetch('/api/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:cdfyUser(),platform:b.dataset.platform})})
-    .then(function(r){return r.json();}).then(function(d){
+    if(b.classList.contains('done')||!userId())return;
+    b.textContent='Opening…';connMsg.textContent='';
+    api('/api/connect','POST',{username:userId(),platform:b.dataset.platform}).then(function(res){
+      var d=res.data||{};
       if(d.authorize_url){window.location.href=d.authorize_url;return;}
       b.textContent='Connect';
       if(d.error==='profile_limit')connMsg.textContent='The posting plan account limit is reached — an upgrade is needed before new accounts can connect.';
@@ -639,38 +659,159 @@
       else connMsg.textContent='Could not start connecting — please try again.';
     }).catch(function(){b.textContent='Connect';connMsg.textContent='Could not start connecting — please try again.';});
   });});
-  var qp=new URLSearchParams(location.search);
-  if(qp.get('connect_return')||qp.get('connect_status')){
-    enterApp();
-    if(qp.get('connect_status')==='success')connMsg.textContent='Connected — your account is linked.';
-    else if(qp.get('connect_status'))connMsg.textContent='That connection did not finish ('+qp.get('connect_status')+'). You can try again below.';
-    history.replaceState(null,'',location.pathname);
+
+  // ---- chat ----
+  var chatLog=$('#chatLog'),chatInput=$('#chatInput');
+  function addMsg(role,text){var d=document.createElement('div');d.className='msg'+(role==='me'?' me':'');d.textContent=text;chatLog.appendChild(d);}
+  function renderChatHistory(){chatLog.innerHTML='';if(S&&S.messages)S.messages.forEach(function(m){addMsg(m.role,m.text);});}
+  function applyChanged(ch){
+    if(!ch||!S||!S.user)return;
+    if(ch.paused!==undefined)S.user.paused=ch.paused;
+    if(ch.dailyPace!==undefined)S.user.dailyPace=ch.dailyPace;
+    if(ch.rules!==undefined)S.user.rules=ch.rules;
+    if(ch.channel){
+      if(!S.channelSettings)S.channelSettings=[];
+      var found=false;
+      S.channelSettings.forEach(function(c){if(c.platform===ch.channel.platform){c.shortsLength=ch.channel.shortsLength;found=true;}});
+      if(!found)S.channelSettings.push({platform:ch.channel.platform,shortsLength:ch.channel.shortsLength,mediumForm:false});
+    }
+    renderFreePill();
   }
-  var chatLog=document.getElementById('chatLog');
-  var chatInput=document.getElementById('chatInput');
   function sendChat(){
-    var t=chatInput.value.trim();if(!t)return;
-    var me=document.createElement('div');me.className='msg me';me.textContent=t;chatLog.appendChild(me);
-    var ag=document.createElement('div');ag.className='msg';ag.textContent="Got it — I'll take care of that.";chatLog.appendChild(ag);
-    chatInput.value='';
+    var t=chatInput.value.trim();if(!t||!userId())return;
+    addMsg('me',t);chatInput.value='';
+    api('/api/chat','POST',{text:t}).then(function(res){
+      if(res.status===200){addMsg('agent',res.data.reply);applyChanged(res.data.changed);}
+      else if(res.data&&res.data.error==='not_configured')addMsg('agent','Accounts aren’t switched on yet.');
+      else addMsg('agent','Something went wrong — please try again.');
+    }).catch(function(){addMsg('agent','Network error — please try again.');});
   }
-  document.getElementById('chatSend').addEventListener('click',sendChat);
+  $('#chatSend').addEventListener('click',sendChat);
   chatInput.addEventListener('keydown',function(e){if(e.key==='Enter')sendChat();});
-  var pauseBtn=document.getElementById('pauseBtn');
-  pauseBtn.addEventListener('click',function(){
-    var paused=pauseBtn.textContent==='Resume';
-    pauseBtn.textContent=paused?'Pause':'Resume';
-    document.getElementById('freePill').textContent=paused?'10 free clips left':'Posting paused';
-  });
-  app.querySelectorAll('[data-plan]').forEach(function(b){b.addEventListener('click',function(){
-    app.querySelectorAll('.curtag').forEach(function(t){t.remove();});
-    var tag=document.createElement('span');tag.className='curtag';tag.textContent='Current plan';
-    b.closest('.billplan').querySelector('b').appendChild(tag);
-    document.getElementById('billState').textContent='You are on the '+b.dataset.plan+' plan.';
-    document.getElementById('freePill').textContent=b.dataset.plan+' plan active';
+
+  // ---- clips ----
+  function renderClips(){
+    var grid=$('#folderGrid'),empty=$('#clipsEmpty');if(!grid)return;
+    api('/api/clips').then(function(res){
+      var folders=(res.data&&res.data.folders)||[];
+      grid.innerHTML='';
+      if(!folders.length){empty.hidden=false;return;}
+      empty.hidden=true;
+      folders.forEach(function(f){
+        var parts=[f.total+' clip'+(f.total===1?'':'s')];
+        if(f.posted)parts.push(f.posted+' posted');
+        if(f.banked)parts.push(f.banked+' banked');
+        var d=document.createElement('div');d.className='folder';
+        d.innerHTML='<div class="fthumb"></div><b></b><span></span>';
+        d.querySelector('b').textContent=f.title;d.querySelector('span').textContent=parts.join(' · ');
+        grid.appendChild(d);
+      });
+    }).catch(function(){grid.innerHTML='';if(empty)empty.hidden=false;});
+  }
+
+  // ---- setup ----
+  var LENGTHS=[['auto','Auto (30–105s)'],['under30','Under 30s'],['30-60','30–60s'],['60-90','60–90s'],['90-180','90–180s']];
+  var PACES=[1,2,3,5,6,10];
+  function csFor(p){var cs=(S&&S.channelSettings)||[];for(var i=0;i<cs.length;i++)if(cs[i].platform===p)return cs[i];return {platform:p,shortsLength:'auto',mediumForm:false};}
+  function saveSetting(body,note){return api('/api/settings','POST',body).then(function(){if(note){note.classList.add('show');setTimeout(function(){note.classList.remove('show');},1400);}});}
+  function renderSetup(){
+    var root=$('#setupBody');if(!root||!S||!S.user)return;
+    var u=S.user,multi=(u.plan==='Multi'||u.plan==='Done-for-you');
+    root.innerHTML='';
+    function row(html){var d=document.createElement('div');d.className='setrow';d.innerHTML=html;return d;}
+    function head(t){var d=document.createElement('div');d.className='sethead';d.textContent=t;return d;}
+
+    root.appendChild(head('Account'));
+    root.appendChild(row('<div><b>Signed in</b><p>'+u.email+'</p></div><div style="color:var(--mut);font-size:13.5px">'+(u.plan==='free'?'Free plan':u.plan+' plan')+'</div>'));
+
+    var pr=row('<div><b>Daily pace</b><p>Clips cut per day</p></div>');
+    var sel=document.createElement('select');
+    PACES.forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n+' per day';if(n===u.dailyPace)o.selected=true;sel.appendChild(o);});
+    var pn=document.createElement('span');pn.className='savednote';pn.textContent='Saved';
+    pr.appendChild(sel);pr.appendChild(pn);
+    sel.addEventListener('change',function(){saveSetting({dailyPace:+sel.value},pn).then(function(){u.dailyPace=+sel.value;renderFreePill();});});
+    root.appendChild(pr);
+
+    var br=row('<div><b>Posting</b><p>Pause or resume everything</p></div>');
+    var pb=document.createElement('button');pb.className='connbtn';pb.textContent=u.paused?'Resume':'Pause';
+    var bn=document.createElement('span');bn.className='savednote';bn.textContent='Saved';
+    br.appendChild(pb);br.appendChild(bn);
+    pb.addEventListener('click',function(){var next=!u.paused;saveSetting({paused:next},bn).then(function(){u.paused=next;pb.textContent=next?'Resume':'Pause';renderFreePill();});});
+    root.appendChild(br);
+
+    var rr=row('<div style="width:100%"><b>Standing rules</b><p>Applied to every clip. One per line.</p></div>');rr.className='setrow col';
+    var ta=document.createElement('textarea');ta.value=u.rules||'';ta.placeholder='e.g. Never use profanity in titles';
+    var rn=document.createElement('span');rn.className='savednote';rn.textContent='Saved';
+    rr.querySelector('b').appendChild(rn);rr.appendChild(ta);
+    ta.addEventListener('blur',function(){if(ta.value===(u.rules||''))return;saveSetting({rules:ta.value},rn).then(function(){u.rules=ta.value;});});
+    root.appendChild(rr);
+
+    root.appendChild(head('Channel formats'));
+    var platforms=Object.keys(connected||{}).filter(function(p){return connected[p];});
+    if(!platforms.length){
+      var none=document.createElement('div');none.className='setrow';none.innerHTML='<div><b>No channels yet</b><p>Connect a channel in Chat to set its format.</p></div>';
+      root.appendChild(none);
+    }else{
+      platforms.forEach(function(p){
+        var cs=csFor(p),label=p.charAt(0).toUpperCase()+p.slice(1);
+        var cr=row('<div><b>'+label+' — Shorts length</b><p>Applies to '+label+' only</p></div>');
+        var s=document.createElement('select');
+        LENGTHS.forEach(function(L){var o=document.createElement('option');o.value=L[0];o.textContent=L[1];if(L[0]===cs.shortsLength)o.selected=true;s.appendChild(o);});
+        var cn=document.createElement('span');cn.className='savednote';cn.textContent='Saved';
+        cr.appendChild(s);cr.appendChild(cn);
+        s.addEventListener('change',function(){saveSetting({platform:p,shortsLength:s.value,mediumForm:cs.mediumForm},cn).then(function(){cs.shortsLength=s.value;});});
+        root.appendChild(cr);
+        if(multi){
+          var mr=row('<div><b>'+label+' — Medium-form cuts</b><p>~10-min cuts (Multi plan and up)</p></div>');
+          var mb=document.createElement('button');mb.className='toggle'+(cs.mediumForm?' on':'');mb.textContent=cs.mediumForm?'On':'Off';
+          var mn=document.createElement('span');mn.className='savednote';mn.textContent='Saved';
+          mr.appendChild(mb);mr.appendChild(mn);
+          mb.addEventListener('click',function(){var next=!cs.mediumForm;saveSetting({platform:p,shortsLength:cs.shortsLength,mediumForm:next},mn).then(function(){cs.mediumForm=next;mb.classList.toggle('on',next);mb.textContent=next?'On':'Off';});});
+          root.appendChild(mr);
+        }
+      });
+    }
+  }
+
+  // ---- billing ----
+  function renderBilling(){
+    if(!S||!S.user)return;
+    var plan=S.user.plan,state=$('#billState');
+    if(state)state.textContent=(plan==='free')
+      ?'Free — 10 clips on us. Posting pauses at 10 until you subscribe; clips stay banked.'
+      :'You are on the '+plan+' plan.';
+    $$('.curtag',app).forEach(function(t){t.remove();});
+    $$('[data-plan]',app).forEach(function(b){
+      if(b.dataset.plan===plan){var tag=document.createElement('span');tag.className='curtag';tag.textContent='Current plan';b.closest('.billplan').querySelector('b').appendChild(tag);}
+    });
+  }
+  $$('[data-plan]',app).forEach(function(b){b.addEventListener('click',function(){
+    if(b.dataset.plan===(S&&S.user&&S.user.plan))return;
+    var orig=b.textContent;b.textContent='Opening…';b.disabled=true;
+    api('/api/checkout','POST',{plan:b.dataset.plan}).then(function(res){
+      b.disabled=false;b.textContent=orig;
+      if(res.data&&res.data.url){window.location.href=res.data.url;return;}
+      var state=$('#billState');
+      if(res.data&&res.data.error==='not_configured')state.textContent='Checkout isn’t switched on yet — Stripe keys are missing. (Plans don’t change until that’s set up.)';
+      else state.textContent='Could not start checkout — please try again.';
+    }).catch(function(){b.disabled=false;b.textContent=orig;});
   });});
 
-  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&modal.classList.contains('open'))close();});
+  // =========================================================
+  // Bootstrap — restore session on load
+  // =========================================================
+  var qp=new URLSearchParams(location.search);
+  refreshState().then(function(){
+    var returning=qp.get('connect_return')||qp.get('connect_status');
+    var billing=qp.get('billing');
+    if(S&&S.authenticated){
+      enterApp('chat');
+      if(qp.get('connect_status')==='success')connMsg.textContent='Connected — your account is linked.';
+      else if(qp.get('connect_status'))connMsg.textContent='That connection did not finish ('+qp.get('connect_status')+'). You can try again below.';
+      if(billing==='success'){refreshState().then(function(){renderFreePill();showTab('billing');});}
+    }
+    if(returning||billing)history.replaceState(null,'',location.pathname);
+  });
 })();
 </script>
 </body>
