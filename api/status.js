@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
   });
   if (r.status !== 200) { res.status(502).json({ error: 'upstream' }); return; }
   const users = await r.json();
-  const list = Array.isArray(users) ? users : (users.users || []);
+  const list = Array.isArray(users) ? users : (users.profiles || users.users || []);
   const profile = list.find((u) => u.username === username);
   if (!profile) { res.status(404).json({ error: 'no_profile' }); return; }
 
