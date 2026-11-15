@@ -256,6 +256,7 @@
   .toggle.on{background:var(--ok);border-color:var(--ok);color:#fff}
   .savednote{font-size:12.5px;color:var(--ok);font-weight:700;margin-left:10px;opacity:0;transition:opacity .2s var(--ease)}
   .savednote.show{opacity:1}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;pointer-events:none;box-shadow:none}
 
   /* ---------- responsive ---------- */
   @media(max-width:860px){
@@ -502,6 +503,24 @@
   </div>
 </div>
 
+<!-- ---------- first-entry connect gate ---------- -->
+<div class="modal" id="gate" aria-hidden="true">
+  <div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Connect your accounts">
+    <h3 style="margin-bottom:4px">Connect your accounts</h3>
+    <p class="ps">Clips post to the channels you connect.</p>
+    <div class="connectcard" style="border:none;box-shadow:none;padding:0;margin:14px 0 0">
+      <div class="connrow"><span class="pl">YouTube</span><button class="connbtn" data-conn data-platform="youtube">Connect</button></div>
+      <div class="connrow"><span class="pl">TikTok</span><button class="connbtn" data-conn data-platform="tiktok">Connect</button></div>
+      <div class="connrow"><span class="pl">Instagram</span><button class="connbtn" data-conn data-platform="instagram">Connect</button></div>
+    </div>
+    <p id="gateCount" class="ps" style="margin:14px 0 0">0 of 3 connected</p>
+    <p id="gateMsg" style="color:var(--mut);font-size:13.5px;margin-top:6px"></p>
+    <button class="btn coral wiz-cta" id="startClipping" disabled>Start clipping <span class="ar">→</span></button>
+    <div class="wiz-foot"><a href="#" id="gateLater">I'll connect later</a></div>
+  </div>
+</div>
+
 <script>
 (function(){
   'use strict';
@@ -574,7 +593,7 @@
     var payload=authMode==='signup'?{firstName:first,email:email,password:pass}:{email:email,password:pass};
     api(path,'POST',payload).then(function(res){
       authContinue.disabled=false;authContinue.innerHTML=label;
-      if(res.status===200){return refreshState().then(function(){if(authMode==='login'){closeModal();enterApp();}else{show(2);}});}
+      if(res.status===200){return refreshState().then(function(){if(authMode==='login'){closeModal();enterAppFlow(entryTab());}else{show(2);}});}
       var e=res.data&&res.data.error;
       if(e==='email_taken')err('That email already has an account — log in instead.');
       else if(e==='invalid_credentials')err('Wrong email or password.');
@@ -587,7 +606,7 @@
   // step 2 -> step 3 (real connecting happens on the in-app card)
   $$('[data-next]',modal).forEach(function(el){el.addEventListener('click',function(){if(cur===2){setDone("You're live.","Clips start posting today. Steer everything from the chat.");}show(Math.min(cur+1,3));});});
   $$('[data-chip]',modal).forEach(function(c){c.addEventListener('click',function(){c.classList.toggle('on');});});
-  $('#enterAppBtn').addEventListener('click',function(){closeModal();enterApp();});
+  $('#enterAppBtn').addEventListener('click',function(){closeModal();enterAppFlow(entryTab());});
 
   // =========================================================
   // App shell
@@ -596,26 +615,50 @@
   var landingEls=$$('header, .hero, section, footer');
   var tabBtns=$$('[data-tab]',app);
   var views=$$('[data-view]',app);
+  // session-storage helpers (per-tab, survive the OAuth round trip; never throw)
+  function ssGet(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}
+  function ssSet(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}
+  function ssDel(k){try{sessionStorage.removeItem(k);}catch(e){}}
+  var TABS=['chat','clips','setup','billing'];
+  function entryTab(){
+    var h=(location.hash||'').replace('#','');
+    if(TABS.indexOf(h)>=0)return h;
+    var s=ssGet('cdfy_tab');
+    if(TABS.indexOf(s)>=0)return s;
+    return 'chat';
+  }
+  var gateSkip=false; // "I'll connect later" — in-memory, so the gate returns on the next visit
+
   function showTab(name){
     tabBtns.forEach(function(x){x.classList.toggle('on',x.dataset.tab===name);});
     views.forEach(function(v){v.hidden=(v.dataset.view!==name);});
+    ssSet('cdfy_tab',name);
+    if(location.hash!=='#'+name){try{history.replaceState(null,'',location.pathname+'#'+name);}catch(e){}}
     if(name==='clips')renderClips();
     if(name==='setup')renderSetup();
     if(name==='billing')renderBilling();
   }
   tabBtns.forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab);});});
 
+  // reveal the app on a tab (pure — status/gate are resolved by the caller first, so no flash)
   function enterApp(tab){
-    if(!S||!S.authenticated){openModal('login');return;}
     closeModal();
     landingEls.forEach(function(el){el.style.display='none';});
     app.hidden=false;
-    renderChatHistory();renderFreePill();renderConnectCard();
+    renderChatHistory();renderFreePill();
     showTab(tab||'chat');
     window.scrollTo(0,0);
   }
-  function exitApp(){app.hidden=true;landingEls.forEach(function(el){el.style.display='';});window.scrollTo(0,0);}
-  $$('[data-signout]',app).forEach(function(b){b.addEventListener('click',function(){api('/api/logout','POST').then(function(){S=null;connected={};exitApp();});});});
+  // resolve real connection status BEFORE revealing, then gate if still zero
+  function enterAppFlow(tab){
+    if(!S||!S.authenticated){openModal('login');return;}
+    refreshStatus().then(function(count){
+      enterApp(tab);
+      if(count===0&&!gateSkip)openGate();else closeGate();
+    });
+  }
+  function exitApp(){app.hidden=true;landingEls.forEach(function(el){el.style.display='';});try{history.replaceState(null,'',location.pathname);}catch(e){}window.scrollTo(0,0);}
+  $$('[data-signout]',app).forEach(function(b){b.addEventListener('click',function(){api('/api/logout','POST').then(function(){S=null;connected={};gateSkip=false;ssDel('cdfy_gate_active');ssDel('cdfy_tab');closeGate();exitApp();});});});
 
   function refreshState(){return api('/api/me').then(function(res){S=res.data;return S;});}
   function userId(){return S&&S.user?S.user.id:null;}
@@ -627,34 +670,52 @@
     else el.textContent=S.user.freeClipsLeft+' free clips left';
   }
 
-  // ---- connect card (Chat) ----
-  var connBtns=$$('[data-conn]',app);
+  // ---- connect flow (shared by the Chat card AND the first-entry gate) ----
   var connMsg=$('#connMsg');
-  function renderConnectCard(){
-    if(!userId())return;
-    api('/api/status?username='+encodeURIComponent(userId())).then(function(res){
-      var d=res.data||{};connected=d.connected||{};
-      var n=0;
-      connBtns.forEach(function(b){
-        var c=connected[b.dataset.platform];
-        if(c){b.classList.add('done');b.textContent='Connected'+(c.handle?' · '+c.handle:'');n++;}
-        else{b.classList.remove('done');b.textContent='Connect';}
-      });
-      var cc=$('#connCount');if(cc)cc.textContent=n+' of 3 connected';
-    }).catch(function(){});
+  var gateMsg=$('#gateMsg');
+  var gate=$('#gate');
+  function connectedCount(){var n=0;for(var k in connected){if(connected[k])n++;}return n;}
+  function applyConnected(){
+    $$('[data-conn]').forEach(function(b){
+      var c=connected[b.dataset.platform];
+      if(c){b.classList.add('done');b.textContent='Connected'+(c.handle?' · '+c.handle:'');}
+      else{b.classList.remove('done');b.textContent='Connect';}
+    });
+    var n=connectedCount(),label=n+' of 3 connected';
+    var cc=$('#connCount');if(cc)cc.textContent=label;
+    var gc=$('#gateCount');if(gc)gc.textContent=label;
+    var sc=$('#startClipping');if(sc)sc.disabled=(n===0);
   }
-  connBtns.forEach(function(b){b.addEventListener('click',function(){
+  function refreshStatus(){
+    if(!userId())return Promise.resolve(0);
+    return api('/api/status?username='+encodeURIComponent(userId())).then(function(res){
+      var d=res.data||{};connected=d.connected||{};applyConnected();return connectedCount();
+    }).catch(function(){return connectedCount();});
+  }
+  function startConnect(b){
     if(b.classList.contains('done')||!userId())return;
-    b.textContent='Opening…';connMsg.textContent='';
+    var inGate=!!b.closest('#gate');var msg=inGate?gateMsg:connMsg;
+    if(inGate)ssSet('cdfy_gate_active','1'); // so the gate re-opens to show the result on return
+    b.textContent='Opening…';if(msg)msg.textContent='';
     api('/api/connect','POST',{username:userId(),platform:b.dataset.platform}).then(function(res){
       var d=res.data||{};
       if(d.authorize_url){window.location.href=d.authorize_url;return;}
-      b.textContent='Connect';
-      if(d.error==='profile_limit')connMsg.textContent='The posting plan account limit is reached — an upgrade is needed before new accounts can connect.';
-      else if(d.error==='not_configured')connMsg.textContent='Connecting is not switched on yet — the server key is missing.';
-      else connMsg.textContent='Could not start connecting — please try again.';
-    }).catch(function(){b.textContent='Connect';connMsg.textContent='Could not start connecting — please try again.';});
-  });});
+      b.textContent='Connect';if(inGate)ssDel('cdfy_gate_active');
+      var m=d.error==='profile_limit'?'The posting plan account limit is reached — an upgrade is needed before new accounts can connect.'
+           :d.error==='not_configured'?'Connecting is not switched on yet — the server key is missing.'
+           :'Could not start connecting — please try again.';
+      if(msg)msg.textContent=m;
+    }).catch(function(){b.textContent='Connect';if(inGate)ssDel('cdfy_gate_active');if(msg)msg.textContent='Could not start connecting — please try again.';});
+  }
+  $$('[data-conn]').forEach(function(b){b.addEventListener('click',function(){startConnect(b);});});
+
+  // ---- first-entry gate ----
+  function openGate(){if(!gate)return;applyConnected();gate.classList.add('open');gate.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';}
+  function closeGate(){if(!gate)return;gate.classList.remove('open');gate.setAttribute('aria-hidden','true');document.body.style.overflow='';}
+  var gateLater=$('#gateLater');
+  if(gateLater)gateLater.addEventListener('click',function(e){e.preventDefault();gateSkip=true;closeGate();});
+  var startClipping=$('#startClipping');
+  if(startClipping)startClipping.addEventListener('click',function(){if(startClipping.disabled)return;ssDel('cdfy_gate_active');closeGate();});
 
   // ---- chat ----
   var chatLog=$('#chatLog'),chatInput=$('#chatInput');
@@ -799,15 +860,27 @@
   // =========================================================
   var qp=new URLSearchParams(location.search);
   refreshState().then(function(){
-    var returning=qp.get('connect_return')||qp.get('connect_status');
+    var isReturn=qp.get('connect_return')||qp.get('connect_status');
     var billing=qp.get('billing');
-    if(S&&S.authenticated){
-      enterApp('chat');
-      if(qp.get('connect_status')==='success')connMsg.textContent='Connected — your account is linked.';
-      else if(qp.get('connect_status'))connMsg.textContent='That connection did not finish ('+qp.get('connect_status')+'). You can try again below.';
-      if(billing==='success'){refreshState().then(function(){renderFreePill();showTab('billing');});}
+    if(!(S&&S.authenticated)){
+      if(isReturn||billing){try{history.replaceState(null,'',location.pathname);}catch(e){}}
+      return;
     }
-    if(returning||billing)history.replaceState(null,'',location.pathname);
+    var gateActive=ssGet('cdfy_gate_active')==='1';
+    // resolve real connection status BEFORE revealing the app (no flash)
+    return refreshStatus().then(function(count){
+      enterApp(entryTab());
+      // connect-return feedback goes to whichever surface is up
+      if(qp.get('connect_status')==='success'){var m='Connected — your account is linked.';if(gateMsg)gateMsg.textContent=m;if(connMsg)connMsg.textContent=m;}
+      else if(qp.get('connect_status')){var m2='That connection did not finish ('+qp.get('connect_status')+'). You can try again below.';if(gateMsg)gateMsg.textContent=m2;if(connMsg)connMsg.textContent=m2;}
+      // gate decision
+      if(isReturn&&gateActive){ssDel('cdfy_gate_active');openGate();}        // returned from a gate connect → show result + Start clipping
+      else if(count===0&&!gateSkip){openGate();}                            // zero connections → mandatory gate
+      else{closeGate();}
+      if(billing==='success'){refreshState().then(function(){renderFreePill();renderBilling();});}
+      // clear query params but keep the tab hash
+      if(isReturn||billing){try{history.replaceState(null,'',location.pathname+location.hash);}catch(e){}}
+    });
   });
 })();
 </script>
