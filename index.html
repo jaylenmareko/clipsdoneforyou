@@ -69,15 +69,31 @@
   .visual .cap{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:12.5px;font-weight:600;color:var(--mut-2);letter-spacing:.01em}
   .visual .cap .live{display:inline-flex;align-items:center;gap:6px;color:var(--ok)}
   .visual .cap .live i{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block;animation:pulse 1.8s var(--ease) infinite}
-  .timeline{position:relative;height:60px;background:linear-gradient(180deg,#e9edf2,#dfe4ea);border-radius:12px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(13,15,20,.08)}
-  .timeline .tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(13,15,20,.05)}
-  .timeline .seg{position:absolute;top:8px;bottom:8px;background:linear-gradient(180deg,#ff6b60,var(--coral));border-radius:7px;opacity:0;box-shadow:0 4px 10px -2px rgba(255,90,78,.5);animation:segIn .6s var(--ease-out) forwards}
-  .timeline .seg::after{content:"";position:absolute;inset:0;border-radius:7px;box-shadow:0 0 0 0 rgba(255,90,78,.45);animation:segGlow 2.6s var(--ease) infinite}
-  @keyframes segIn{from{opacity:0;transform:scaleY(.5)}to{opacity:.95;transform:scaleY(1)}}
-  @keyframes segGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,90,78,.4)}50%{box-shadow:0 0 0 5px rgba(255,90,78,0)}}
-  .timeline .scan{position:absolute;top:0;bottom:0;width:2px;background:linear-gradient(180deg,transparent,#fff,transparent);box-shadow:0 0 14px 3px rgba(255,255,255,.8);animation:scan 3.4s var(--ease) infinite}
-  @keyframes scan{0%{left:-2%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:102%;opacity:0}}
-  .arrow{display:flex;justify-content:center;margin:16px 0 18px}
+  /* real video scrubber */
+  .scrubber{position:relative;padding-top:14px}
+  .filmstrip{position:relative;display:flex;gap:2px;height:66px;background:#11151b;border-radius:11px;padding:3px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.4),0 6px 18px -8px rgba(13,15,20,.3)}
+  .fr{position:relative;flex:1;border-radius:4px;background:var(--g);overflow:hidden}
+  .fr::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(0,0,0,.18))}
+  .glint{position:absolute;top:3px;bottom:3px;left:0;width:34px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);filter:blur(1px);animation:glint 4.2s var(--ease) infinite;pointer-events:none;z-index:1}
+  @keyframes glint{0%{left:-6%;opacity:0}10%{opacity:1}90%{opacity:1}100%{left:102%;opacity:0}}
+  /* chapter tick dividers over the strip */
+  .chap{position:absolute;top:3px;bottom:3px;width:2px;background:rgba(17,21,27,.55);box-shadow:0 0 0 1px rgba(255,255,255,.12);z-index:2}
+  /* clip-cut pin markers */
+  .pin{position:absolute;top:-2px;transform:translateX(-50%);z-index:4}
+  .pin i{display:block;width:16px;height:16px;border-radius:50%;background:linear-gradient(180deg,#ff6b60,var(--coral));border:2.5px solid #fff;box-shadow:0 2px 6px -1px rgba(255,90,78,.7)}
+  .pin i::after{content:"";position:absolute;top:13px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid var(--coral)}
+  .pin em{position:absolute;top:4px;left:50%;width:14px;height:14px;transform:translate(-50%,-50%);border-radius:50%;box-shadow:0 0 0 0 rgba(255,90,78,.5);animation:ping 2.6s var(--ease) infinite}
+  @keyframes ping{0%,100%{box-shadow:0 0 0 0 rgba(255,90,78,.45)}50%{box-shadow:0 0 0 7px rgba(255,90,78,0)}}
+  /* red watched-progress scrubber line + playhead */
+  .seek{position:absolute;left:3px;right:3px;bottom:8px;height:4px;border-radius:3px;background:rgba(255,255,255,.28);box-shadow:0 1px 2px rgba(0,0,0,.35);z-index:3}
+  .seek .fill{position:absolute;left:0;top:0;bottom:0;width:14%;border-radius:3px;background:linear-gradient(90deg,#ff6b60,var(--coral));box-shadow:0 0 10px rgba(255,90,78,.7)}
+  .seek .head{position:absolute;left:14%;top:50%;width:15px;height:15px;transform:translate(-50%,-50%);border-radius:50%;background:var(--coral);border:2px solid #fff;box-shadow:0 2px 8px -1px rgba(255,90,78,.8);animation:ping 2.2s var(--ease) infinite}
+  /* connectors from pins down to clip cards */
+  .links{position:relative;height:30px}
+  .links .ln{position:absolute;top:0;bottom:8px;width:0;border-left:2px dashed rgba(255,90,78,.45);transform:translateX(-50%)}
+  .links .ln::before{content:"";position:absolute;top:-1px;left:-3px;width:6px;height:6px;border-radius:50%;background:var(--coral)}
+  .links .ln::after{content:"";position:absolute;bottom:-2px;left:50%;transform:translateX(-50%) rotate(45deg);width:7px;height:7px;border-right:2px solid var(--coral);border-bottom:2px solid var(--coral)}
+  .arrow{display:none;justify-content:center;margin:14px 0 16px}
   .arrow svg{color:var(--mut-2);animation:floatY 2.4s var(--ease) infinite}
   @keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
   .cliprow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -183,6 +199,8 @@
     .plan.hot:hover{transform:translateY(-6px)}
     .cliprow{grid-template-columns:1fr 1fr}
     .cliprow .clip:nth-child(3){grid-column:span 2}
+    .links{display:none}
+    .arrow{display:flex}
   }
   @media(max-width:560px){
     .hero{padding:64px 0 16px}
@@ -216,12 +234,34 @@
 
   <div class="visual reveal">
     <div class="cap"><span>Your long video</span><span class="live"><i></i>Live</span></div>
-    <div class="timeline">
-      <span class="tick" style="left:20%"></span><span class="tick" style="left:40%"></span><span class="tick" style="left:60%"></span><span class="tick" style="left:80%"></span>
-      <div class="seg" style="left:12%;width:9%;animation-delay:.2s"></div>
-      <div class="seg" style="left:44%;width:11%;animation-delay:.35s"></div>
-      <div class="seg" style="left:74%;width:8%;animation-delay:.5s"></div>
-      <div class="scan"></div>
+    <div class="scrubber">
+      <div class="pin" style="left:16%"><i><em></em></i></div>
+      <div class="pin" style="left:50%"><i><em></em></i></div>
+      <div class="pin" style="left:84%"><i><em></em></i></div>
+      <div class="filmstrip">
+        <span class="fr" style="--g:linear-gradient(135deg,#8fa3b8,#60728a)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#d8b89a,#b58a63)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#9fb3a2,#6f846f)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#c7a6bf,#95758e)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#a6bcd2,#7890aa)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#e0c3a1,#c0956b)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#aeb6c2,#848c9b)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#d6a7a0,#b07a72)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#9bb4b9,#6d898f)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#c4cad3,#969eac)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#bfa8cf,#8f77ad)"></span>
+        <span class="fr" style="--g:linear-gradient(135deg,#a9c0bd,#778f8b)"></span>
+        <span class="chap" style="left:25%"></span>
+        <span class="chap" style="left:50%"></span>
+        <span class="chap" style="left:75%"></span>
+        <div class="glint"></div>
+        <div class="seek"><div class="fill"></div><div class="head"></div></div>
+      </div>
+    </div>
+    <div class="links" aria-hidden="true">
+      <span class="ln" style="left:16%"></span>
+      <span class="ln" style="left:50%"></span>
+      <span class="ln" style="left:84%"></span>
     </div>
     <div class="arrow"><svg width="26" height="30" viewBox="0 0 26 30" fill="none"><path d="M13 2v22m0 0l-8-8m8 8l8-8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
     <div class="cliprow">
