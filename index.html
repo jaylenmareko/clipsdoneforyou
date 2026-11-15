@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClipsDoneForYou — Your videos, clipped and posted for you</title>
+<meta name="description" content="Connect your channels. We clip your long videos and post the best moments every day. You do nothing.">
+<style>
+  :root{--ink:#14161a;--mut:#5b6470;--coral:#ff5a4e;--bg:#ffffff;--soft:#f6f7f9;--line:#e8ebef;--ok:#1a9e6b}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.45}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 22px}
+  header{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:5}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:62px}
+  .wordmark{font-weight:800;font-size:20px;letter-spacing:-.02em}
+  .wordmark .tld{color:var(--coral)}
+  .nav a{color:var(--ink);text-decoration:none;font-weight:600;font-size:15px;margin-left:22px}
+  .btn{display:inline-block;background:var(--ink);color:#fff;padding:11px 22px;border-radius:999px;font-weight:700;font-size:15px;text-decoration:none}
+  .btn.coral{background:var(--coral)}
+  .hero{padding:84px 0 30px;text-align:center}
+  .hero h1{font-size:52px;line-height:1.05;letter-spacing:-.03em;font-weight:850}
+  .hero p{font-size:19px;color:var(--mut);margin:18px auto 28px;max-width:520px}
+  .hero .note{margin-top:14px;font-size:14px;color:var(--mut)}
+  .visual{margin:44px auto 0;max-width:820px;background:var(--soft);border:1px solid var(--line);border-radius:20px;padding:26px}
+  .timeline{height:54px;background:#dfe4ea;border-radius:10px;position:relative;overflow:hidden}
+  .timeline .seg{position:absolute;top:0;bottom:0;background:var(--coral);opacity:.85;border-radius:6px}
+  .arrow{font-size:26px;color:var(--mut);margin:14px 0}
+  .cliprow{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .clip{width:150px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;text-align:left}
+  .clip .thumb{height:74px;border-radius:8px;background:linear-gradient(135deg,#ffd9d5,#ffe9e6)}
+  .clip b{display:block;font-size:13px;margin-top:9px;line-height:1.3}
+  .clip span{font-size:12px;color:var(--ok);font-weight:700}
+  section{padding:64px 0}
+  h2{font-size:32px;letter-spacing:-.02em;text-align:center;margin-bottom:10px}
+  .sub{text-align:center;color:var(--mut);margin-bottom:36px}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .step{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:24px}
+  .step .n{width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:12px}
+  .step b{font-size:17px}
+  .step p{color:var(--mut);font-size:15px;margin-top:4px}
+  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:stretch}
+  .plan{border:1px solid var(--line);border-radius:18px;padding:26px;display:flex;flex-direction:column}
+  .plan.hot{border:2px solid var(--coral)}
+  .plan .price{font-size:38px;font-weight:850;letter-spacing:-.02em}
+  .plan .price small{font-size:15px;color:var(--mut);font-weight:600}
+  .plan ul{list-style:none;margin:16px 0 22px;color:var(--mut);font-size:15px}
+  .plan li{margin:7px 0}
+  .plan .btn{text-align:center;margin-top:auto}
+  .tag{display:inline-block;font-size:12px;font-weight:800;color:var(--coral);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+  .flow{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;text-align:center}
+  .flow .f{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:16px 18px;font-weight:700;font-size:15px}
+  .flow .arr{color:var(--mut);font-size:20px}
+  .faq{max-width:720px;margin:0 auto}
+  .faq div{border-bottom:1px solid var(--line);padding:16px 0}
+  .faq b{display:block;margin-bottom:3px}
+  .faq p{color:var(--mut);font-size:15px}
+  footer{border-top:1px solid var(--line);padding:28px 0;color:var(--mut);font-size:14px;text-align:center}
+  @media(max-width:820px){.steps,.plans{grid-template-columns:1fr}.hero h1{font-size:38px}}
+</style>
+</head>
+<body>
+<header><div class="wrap nav">
+  <div class="wordmark">ClipsDoneForYou<span class="tld">.com</span></div>
+  <nav><a href="#how">How it works</a><a href="#pricing">Pricing</a><a class="btn coral" href="#pricing">Start free</a></nav>
+</div></header>
+
+<div class="wrap hero">
+  <h1>Your videos in.<br>Clips posted out.</h1>
+  <p>Connect your channels once. Your clips get made and posted every day — you do nothing.</p>
+  <a class="btn coral" href="#pricing">Start free — 10 clips on us</a>
+  <div class="note">No card upfront. Posting pauses at 10 until you subscribe.</div>
+  <div class="visual">
+    <div class="timeline"><div class="seg" style="left:12%;width:9%"></div><div class="seg" style="left:44%;width:11%"></div><div class="seg" style="left:74%;width:8%"></div></div>
+    <div class="arrow">↓</div>
+    <div class="cliprow">
+      <div class="clip"><div class="thumb"></div><b>Best moment #1</b><span>✓ Posted</span></div>
+      <div class="clip"><div class="thumb"></div><b>Best moment #2</b><span>✓ Posted</span></div>
+      <div class="clip"><div class="thumb"></div><b>Best moment #3</b><span>✓ Posted</span></div>
+    </div>
+  </div>
+</div>
+
+<section id="how"><div class="wrap">
+  <h2>Three steps. Then it just runs.</h2>
+  <p class="sub">Set up in minutes, in plain chat — like texting an assistant.</p>
+  <div class="steps">
+    <div class="step"><div class="n">1</div><b>Create your account</b><p>First name, email, password.</p></div>
+    <div class="step"><div class="n">2</div><b>Connect your channels</b><p>YouTube, TikTok, Instagram — one tap each, add as many as you have.</p></div>
+    <div class="step"><div class="n">3</div><b>You're live</b><p>Clips start posting. Steer everything from the chat.</p></div>
+  </div>
+</div></section>
+
+<section id="pricing" style="background:var(--soft)"><div class="wrap">
+  <h2>Flat pricing. No credits.</h2>
+  <p class="sub">Every plan starts with 10 free posted clips.</p>
+  <div class="plans">
+    <div class="plan"><span class="tag">Solo</span><div class="price">$19<small>/mo</small></div>
+      <ul><li>1 channel</li><li>3 clips a day · ~90/mo</li><li>Shorts, any length you pick</li></ul>
+      <a class="btn" href="#">Start free</a></div>
+    <div class="plan hot"><span class="tag">Multi · Most popular</span><div class="price">$39<small>/mo</small></div>
+      <ul><li>Up to 3 channels</li><li>6 clips a day per channel · ~180/mo</li><li>Shorts + ~10-min cuts</li><li>Back-catalog mining</li></ul>
+      <a class="btn coral" href="#">Start free</a></div>
+    <div class="plan"><span class="tag">Done-for-you</span><div class="price">$299<small>/mo</small></div>
+      <ul><li>Fully managed for you</li><li>Max pace, up to 10 clips a day</li><li>We handle everything</li></ul>
+      <a class="btn" href="#">Start free</a></div>
+  </div>
+  <div style="height:30px"></div>
+  <div class="flow">
+    <div class="f">90–180 clips included</div><div class="arr">→</div>
+    <div class="f">No pause past your plan</div><div class="arr">→</div>
+    <div class="f">+$0.25 per extra clip</div><div class="arr">→</div>
+    <div class="f">One monthly bill</div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Questions</h2>
+  <div style="height:20px"></div>
+  <div class="faq">
+    <div><b>Do I have to edit anything?</b><p>No. Clipping, titles, and posting are done for you.</p></div>
+    <div><b>How do I change things?</b><p>Just say it in the chat — "post 5 a day", "make TikTok clips shorter", "clip this video".</p></div>
+    <div><b>What formats?</b><p>Shorts on every plan. ~10-minute cuts on Multi and up. Lengths are set per channel.</p></div>
+    <div><b>What happens after 10 free clips?</b><p>Posting pauses, your clips stay banked, and subscribing picks up right where it left off.</p></div>
+    <div><b>Can I cancel anytime?</b><p>Yes. No lock-in.</p></div>
+  </div>
+</div></section>
+
+<footer>ClipsDoneForYou.com — your videos, clipped and posted for you.</footer>
+</body>
+</html>
