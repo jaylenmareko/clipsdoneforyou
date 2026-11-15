@@ -426,10 +426,6 @@
         <div class="connrow"><span class="pl">Instagram</span><button class="connbtn" data-conn data-platform="instagram">Connect</button></div>
         <p id="connMsg" style="margin-top:10px"></p>
       </div>
-      <div class="composer">
-        <input id="chatInput" type="text" placeholder="Tell your agent what to do…">
-        <button id="chatSend" aria-label="Send">↑</button>
-      </div>
     </div>
   </div>
 
@@ -686,8 +682,9 @@
       else addMsg('agent','Something went wrong — please try again.');
     }).catch(function(){addMsg('agent','Network error — please try again.');});
   }
-  $('#chatSend').addEventListener('click',sendChat);
-  chatInput.addEventListener('keydown',function(e){if(e.key==='Enter')sendChat();});
+  var chatSendBtn=$('#chatSend');
+  if(chatSendBtn)chatSendBtn.addEventListener('click',sendChat);
+  if(chatInput)chatInput.addEventListener('keydown',function(e){if(e.key==='Enter')sendChat();});
 
   // ---- clips ----
   function renderClips(){
