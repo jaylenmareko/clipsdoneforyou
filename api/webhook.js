@@ -5,8 +5,6 @@
 // Body parsing is disabled so the exact bytes Stripe signed reach constructEvent.
 const { q, configured } = require('./_db');
 
-module.exports.config = { api: { bodyParser: false } };
-
 function readRaw(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -51,3 +49,7 @@ module.exports = async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 };
+
+// Disable Vercel's body parser so the exact bytes Stripe signed reach
+// constructEvent. Attached after the handler assignment so it isn't discarded.
+module.exports.config = { api: { bodyParser: false } };
