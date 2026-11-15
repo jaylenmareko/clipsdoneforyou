@@ -5,118 +5,272 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ClipsDoneForYou — Your videos, clipped and posted for you</title>
 <meta name="description" content="Connect your channels. We clip your long videos and post the best moments every day. You do nothing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-  :root{--ink:#14161a;--mut:#5b6470;--coral:#ff5a4e;--bg:#ffffff;--soft:#f6f7f9;--line:#e8ebef;--ok:#1a9e6b}
+  :root{
+    --ink:#0d0f14; --ink-2:#1b202a; --mut:#5e6672; --mut-2:#8b929d;
+    --coral:#ff5a4e; --coral-dk:#e8463b; --coral-soft:#fff1ef;
+    --bg:#ffffff; --soft:#f7f8fa; --soft-2:#fbfcfd; --line:#ebeef2; --line-2:#e0e4ea; --ok:#12a06b;
+    --r-sm:12px; --r-md:16px; --r-lg:22px; --r-pill:999px;
+    --sh-sm:0 1px 2px rgba(13,15,20,.05), 0 1px 1px rgba(13,15,20,.04);
+    --sh-md:0 6px 20px -6px rgba(13,15,20,.12), 0 2px 6px -2px rgba(13,15,20,.06);
+    --sh-lg:0 30px 70px -24px rgba(13,15,20,.28), 0 10px 28px -12px rgba(13,15,20,.12);
+    --sh-coral:0 10px 26px -8px rgba(255,90,78,.55);
+    --ease:cubic-bezier(.4,0,.2,1); --ease-out:cubic-bezier(.16,1,.3,1);
+  }
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.45}
-  .wrap{max-width:1060px;margin:0 auto;padding:0 22px}
-  header{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:5}
-  .nav{display:flex;align-items:center;justify-content:space-between;height:62px}
-  .wordmark{font-weight:800;font-size:20px;letter-spacing:-.02em}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.5;
+    font-feature-settings:'cv11','ss01';-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  a{color:inherit}
+
+  /* ---------- header ---------- */
+  header{position:sticky;top:0;background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(14px);-webkit-backdrop-filter:saturate(180%) blur(14px);border-bottom:1px solid transparent;z-index:40;transition:border-color .3s var(--ease),box-shadow .3s var(--ease),background .3s var(--ease)}
+  header.scrolled{border-bottom-color:var(--line);box-shadow:0 1px 0 rgba(13,15,20,.02),0 6px 24px -18px rgba(13,15,20,.3)}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:66px}
+  .wordmark{font-weight:800;font-size:19px;letter-spacing:-.025em;cursor:pointer;user-select:none}
   .wordmark .tld{color:var(--coral)}
-  .nav a{color:var(--ink);text-decoration:none;font-weight:600;font-size:15px;margin-left:22px}
-  .btn{display:inline-block;background:var(--ink);color:#fff;padding:11px 22px;border-radius:999px;font-weight:700;font-size:15px;text-decoration:none}
-  .btn.coral{background:var(--coral)}
-  .hero{padding:84px 0 30px;text-align:center}
-  .hero h1{font-size:52px;line-height:1.05;letter-spacing:-.03em;font-weight:850}
-  .hero p{font-size:19px;color:var(--mut);margin:18px auto 28px;max-width:520px}
-  .hero .note{margin-top:14px;font-size:14px;color:var(--mut)}
-  .visual{margin:44px auto 0;max-width:820px;background:var(--soft);border:1px solid var(--line);border-radius:20px;padding:26px}
-  .timeline{height:54px;background:#dfe4ea;border-radius:10px;position:relative;overflow:hidden}
-  .timeline .seg{position:absolute;top:0;bottom:0;background:var(--coral);opacity:.85;border-radius:6px}
-  .arrow{font-size:26px;color:var(--mut);margin:14px 0}
-  .cliprow{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
-  .clip{width:150px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;text-align:left}
-  .clip .thumb{height:74px;border-radius:8px;background:linear-gradient(135deg,#ffd9d5,#ffe9e6)}
-  .clip b{display:block;font-size:13px;margin-top:9px;line-height:1.3}
-  .clip span{font-size:12px;color:var(--ok);font-weight:700}
-  section{padding:64px 0}
-  h2{font-size:32px;letter-spacing:-.02em;text-align:center;margin-bottom:10px}
-  .sub{text-align:center;color:var(--mut);margin-bottom:36px}
-  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-  .step{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:24px}
-  .step .n{width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:12px}
-  .step b{font-size:17px}
-  .step p{color:var(--mut);font-size:15px;margin-top:4px}
-  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:stretch}
-  .plan{border:1px solid var(--line);border-radius:18px;padding:26px;display:flex;flex-direction:column}
-  .plan.hot{border:2px solid var(--coral)}
-  .plan .price{font-size:38px;font-weight:850;letter-spacing:-.02em}
-  .plan .price small{font-size:15px;color:var(--mut);font-weight:600}
-  .plan ul{list-style:none;margin:16px 0 22px;color:var(--mut);font-size:15px}
-  .plan li{margin:7px 0}
-  .plan .btn{text-align:center;margin-top:auto}
-  .tag{display:inline-block;font-size:12px;font-weight:800;color:var(--coral);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
-  .flow{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;text-align:center}
-  .flow .f{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:16px 18px;font-weight:700;font-size:15px}
-  .flow .arr{color:var(--mut);font-size:20px}
-  .faq{max-width:720px;margin:0 auto}
-  .faq div{border-bottom:1px solid var(--line);padding:16px 0}
-  .faq b{display:block;margin-bottom:3px}
-  .faq p{color:var(--mut);font-size:15px}
-  footer{border-top:1px solid var(--line);padding:28px 0;color:var(--mut);font-size:14px;text-align:center}
-  @media(max-width:820px){.steps,.plans{grid-template-columns:1fr}.hero h1{font-size:38px}}
+  .nav nav{display:flex;align-items:center;gap:4px}
+  .nav nav a.link{color:var(--ink-2);text-decoration:none;font-weight:550;font-size:14.5px;padding:8px 14px;border-radius:var(--r-pill);transition:color .2s var(--ease),background .2s var(--ease)}
+  .nav nav a.link:hover{color:var(--ink);background:var(--soft)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--ink);color:#fff;padding:11px 20px;border-radius:var(--r-pill);font-weight:650;font-size:14.5px;text-decoration:none;border:none;cursor:pointer;letter-spacing:-.01em;box-shadow:var(--sh-sm);transition:transform .18s var(--ease),box-shadow .25s var(--ease),background .2s var(--ease)}
+  .btn:hover{transform:translateY(-1.5px);box-shadow:var(--sh-md)}
+  .btn:active{transform:translateY(0) scale(.98)}
+  .btn.coral{background:linear-gradient(180deg,#ff6b60,var(--coral));box-shadow:var(--sh-coral)}
+  .btn.coral:hover{box-shadow:0 14px 32px -8px rgba(255,90,78,.62)}
+  .btn.lg{padding:15px 28px;font-size:16px;font-weight:700}
+  .btn .ar{transition:transform .25s var(--ease-out)}
+  .btn:hover .ar{transform:translateX(3px)}
+
+  /* ---------- hero ---------- */
+  .hero{position:relative;padding:92px 0 24px;text-align:center}
+  .hero::before{content:"";position:absolute;inset:-10% -20% 40%;background:radial-gradient(60% 55% at 50% 22%,rgba(255,90,78,.09),rgba(255,90,78,0) 70%);pointer-events:none;z-index:-1}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink-2);background:var(--bg);border:1px solid var(--line-2);padding:6px 14px 6px 10px;border-radius:var(--r-pill);box-shadow:var(--sh-sm);margin-bottom:26px}
+  .eyebrow .pip{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(18,160,107,.16);animation:pulse 2.4s var(--ease) infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .hero h1{font-size:clamp(40px,6.4vw,62px);line-height:1.03;letter-spacing:-.04em;font-weight:850}
+  .hero p{font-size:clamp(17px,2.2vw,20px);color:var(--mut);margin:20px auto 30px;max-width:540px;letter-spacing:-.01em}
+  .hero .cta-row{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .hero .note{font-size:13.5px;color:var(--mut-2)}
+
+  /* reveal on scroll */
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s var(--ease-out),transform .7s var(--ease-out)}
+  .reveal.in{opacity:1;transform:none}
+
+  /* ---------- hero visual ---------- */
+  .visual{position:relative;margin:52px auto 0;max-width:760px;background:linear-gradient(180deg,#fff,var(--soft-2));border:1px solid var(--line);border-radius:var(--r-lg);padding:28px;box-shadow:var(--sh-lg)}
+  .visual .cap{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:12.5px;font-weight:600;color:var(--mut-2);letter-spacing:.01em}
+  .visual .cap .live{display:inline-flex;align-items:center;gap:6px;color:var(--ok)}
+  .visual .cap .live i{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block;animation:pulse 1.8s var(--ease) infinite}
+  .timeline{position:relative;height:60px;background:linear-gradient(180deg,#e9edf2,#dfe4ea);border-radius:12px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(13,15,20,.08)}
+  .timeline .tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(13,15,20,.05)}
+  .timeline .seg{position:absolute;top:8px;bottom:8px;background:linear-gradient(180deg,#ff6b60,var(--coral));border-radius:7px;opacity:0;box-shadow:0 4px 10px -2px rgba(255,90,78,.5);animation:segIn .6s var(--ease-out) forwards}
+  .timeline .seg::after{content:"";position:absolute;inset:0;border-radius:7px;box-shadow:0 0 0 0 rgba(255,90,78,.45);animation:segGlow 2.6s var(--ease) infinite}
+  @keyframes segIn{from{opacity:0;transform:scaleY(.5)}to{opacity:.95;transform:scaleY(1)}}
+  @keyframes segGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,90,78,.4)}50%{box-shadow:0 0 0 5px rgba(255,90,78,0)}}
+  .timeline .scan{position:absolute;top:0;bottom:0;width:2px;background:linear-gradient(180deg,transparent,#fff,transparent);box-shadow:0 0 14px 3px rgba(255,255,255,.8);animation:scan 3.4s var(--ease) infinite}
+  @keyframes scan{0%{left:-2%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:102%;opacity:0}}
+  .arrow{display:flex;justify-content:center;margin:16px 0 18px}
+  .arrow svg{color:var(--mut-2);animation:floatY 2.4s var(--ease) infinite}
+  @keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+  .cliprow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .clip{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:12px;text-align:left;cursor:pointer;opacity:0;transform:translateY(14px) scale(.97);animation:clipIn .6s var(--ease-out) forwards;transition:transform .25s var(--ease),box-shadow .25s var(--ease),border-color .25s var(--ease)}
+  .clip:hover{transform:translateY(-4px);box-shadow:var(--sh-md);border-color:var(--line-2)}
+  @keyframes clipIn{to{opacity:1;transform:none}}
+  .clip:nth-child(1){animation-delay:.5s}
+  .clip:nth-child(2){animation-delay:.72s}
+  .clip:nth-child(3){animation-delay:.94s}
+  .clip .thumb{position:relative;height:78px;border-radius:9px;background:linear-gradient(135deg,#ffd9d5,#ffe9e6);overflow:hidden}
+  .clip .thumb::before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);transform:translateX(-120%);animation:shimmer 3.2s var(--ease) infinite}
+  @keyframes shimmer{0%{transform:translateX(-120%)}60%,100%{transform:translateX(120%)}}
+  .clip .play{position:absolute;inset:0;margin:auto;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-sm)}
+  .clip .play::after{content:"";margin-left:2px;border-left:8px solid var(--coral);border-top:5px solid transparent;border-bottom:5px solid transparent}
+  .clip b{display:block;font-size:13px;margin-top:10px;line-height:1.35;font-weight:650;letter-spacing:-.01em}
+  .clip .posted{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--ok);font-weight:700;margin-top:3px}
+
+  /* ---------- sections ---------- */
+  section{padding:76px 0}
+  .sec-head{text-align:center;margin-bottom:44px}
+  h2{font-size:clamp(27px,3.6vw,34px);letter-spacing:-.03em;font-weight:800}
+  .sub{color:var(--mut);margin-top:10px;font-size:16.5px;letter-spacing:-.01em}
+
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;counter-reset:s}
+  .card-click{cursor:pointer;transition:transform .28s var(--ease-out),box-shadow .28s var(--ease),border-color .28s var(--ease),background .28s var(--ease)}
+  .card-click:hover{transform:translateY(-6px);box-shadow:var(--sh-lg);border-color:var(--line-2)}
+  .card-click:active{transform:translateY(-2px) scale(.995)}
+  .step{position:relative;background:linear-gradient(180deg,#fff,var(--soft-2));border:1px solid var(--line);border-radius:var(--r-lg);padding:28px}
+  .step .n{width:38px;height:38px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;margin-bottom:16px;box-shadow:var(--sh-sm)}
+  .step:hover .n{background:var(--coral);box-shadow:var(--sh-coral)}
+  .step b{font-size:17.5px;font-weight:700;letter-spacing:-.02em}
+  .step p{color:var(--mut);font-size:15px;margin-top:6px}
+
+  /* ---------- pricing ---------- */
+  #pricing{background:linear-gradient(180deg,var(--soft),#fff)}
+  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:stretch}
+  .plan{position:relative;background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:28px;display:flex;flex-direction:column;box-shadow:var(--sh-sm)}
+  .plan.hot{border:1.5px solid var(--coral);box-shadow:0 24px 60px -24px rgba(255,90,78,.4),var(--sh-md);transform:translateY(-6px)}
+  .plan.hot:hover{transform:translateY(-12px)}
+  .tag{display:inline-block;font-size:11.5px;font-weight:800;color:var(--mut-2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px}
+  .plan.hot .tag{color:var(--coral)}
+  .plan .price{font-size:42px;font-weight:850;letter-spacing:-.03em;line-height:1}
+  .plan .price small{font-size:15px;color:var(--mut);font-weight:600;letter-spacing:0}
+  .plan ul{list-style:none;margin:18px 0 24px;display:flex;flex-direction:column;gap:9px}
+  .plan li{position:relative;padding-left:24px;color:var(--ink-2);font-size:14.5px;letter-spacing:-.01em}
+  .plan li::before{content:"";position:absolute;left:0;top:7px;width:14px;height:8px;border-left:2px solid var(--ok);border-bottom:2px solid var(--ok);transform:rotate(-45deg)}
+  .plan .btn{text-align:center;margin-top:auto;width:100%}
+
+  .overage{margin-top:40px}
+  .flow{display:flex;align-items:stretch;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center}
+  .flow .f{flex:1;min-width:150px;max-width:230px;background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:18px 16px;font-weight:650;font-size:14.5px;letter-spacing:-.01em;box-shadow:var(--sh-sm);display:flex;align-items:center;justify-content:center}
+  .flow .f.mark{background:var(--coral-soft);border-color:rgba(255,90,78,.25);color:var(--coral-dk)}
+  .flow .arr{display:flex;align-items:center;color:var(--mut-2)}
+
+  /* ---------- faq ---------- */
+  .faq{max-width:760px;margin:0 auto;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:#fff;box-shadow:var(--sh-sm)}
+  .faq div{border-bottom:1px solid var(--line);padding:20px 24px}
+  .faq div:last-child{border-bottom:none}
+  .faq b{display:block;margin-bottom:5px;font-size:15.5px;font-weight:700;letter-spacing:-.01em}
+  .faq p{color:var(--mut);font-size:14.5px}
+
+  footer{border-top:1px solid var(--line);padding:34px 0;color:var(--mut-2);font-size:13.5px;text-align:center}
+  footer .wordmark{display:inline-block;font-size:15px;margin-bottom:6px}
+
+  /* ---------- wizard modal ---------- */
+  .modal{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+  .modal.open{display:flex}
+  .scrim{position:absolute;inset:0;background:rgba(13,15,20,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);animation:fade .25s var(--ease)}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .sheet{position:relative;width:100%;max-width:440px;background:#fff;border-radius:24px;box-shadow:var(--sh-lg);padding:30px;animation:pop .32s var(--ease-out)}
+  @keyframes pop{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+  .sheet .x{position:absolute;top:16px;right:16px;width:34px;height:34px;border-radius:50%;border:none;background:var(--soft);color:var(--mut);font-size:19px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s var(--ease),color .2s var(--ease)}
+  .sheet .x:hover{background:var(--line);color:var(--ink)}
+  .prog{display:flex;gap:7px;margin-bottom:22px}
+  .prog i{height:5px;flex:1;border-radius:3px;background:var(--line);transition:background .35s var(--ease)}
+  .prog i.on{background:var(--coral)}
+  .pane{animation:paneIn .3s var(--ease-out)}
+  @keyframes paneIn{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+  .pane .step-no{font-size:12.5px;font-weight:700;color:var(--coral);text-transform:uppercase;letter-spacing:.06em}
+  .pane h3{font-size:22px;font-weight:800;letter-spacing:-.02em;margin:6px 0 4px}
+  .pane .ps{color:var(--mut);font-size:14.5px;margin-bottom:20px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:6px}
+  .field input{width:100%;padding:12px 14px;border:1px solid var(--line-2);border-radius:12px;font:inherit;font-size:15px;color:var(--ink);background:var(--soft-2);transition:border-color .2s var(--ease),box-shadow .2s var(--ease),background .2s var(--ease)}
+  .field input:focus{outline:none;border-color:var(--coral);background:#fff;box-shadow:0 0 0 3px rgba(255,90,78,.14)}
+  .chips{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+  .chip{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:1px solid var(--line-2);border-radius:14px;cursor:pointer;font-weight:650;font-size:15px;background:var(--soft-2);transition:all .2s var(--ease);user-select:none}
+  .chip:hover{border-color:var(--mut-2)}
+  .chip .box{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line-2);display:flex;align-items:center;justify-content:center;transition:all .2s var(--ease)}
+  .chip.on{border-color:var(--coral);background:var(--coral-soft)}
+  .chip.on .box{background:var(--coral);border-color:var(--coral)}
+  .chip.on .box::after{content:"";width:11px;height:6px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translateY(-1px)}
+  .done-ring{width:68px;height:68px;border-radius:50%;background:var(--coral-soft);display:flex;align-items:center;justify-content:center;margin:4px auto 18px}
+  .done-ring::after{content:"";width:22px;height:12px;border-left:3px solid var(--coral);border-bottom:3px solid var(--coral);transform:rotate(-45deg) translateY(-2px);animation:check .4s var(--ease-out)}
+  @keyframes check{from{opacity:0;transform:rotate(-45deg) translateY(-2px) scale(.5)}to{opacity:1;transform:rotate(-45deg) translateY(-2px) scale(1)}}
+  .wiz-cta{width:100%;margin-top:4px}
+  .wiz-foot{text-align:center;font-size:12.5px;color:var(--mut-2);margin-top:14px}
+
+  /* ---------- responsive ---------- */
+  @media(max-width:860px){
+    .steps,.plans{grid-template-columns:1fr}
+    .plan.hot{transform:none}
+    .plan.hot:hover{transform:translateY(-6px)}
+    .cliprow{grid-template-columns:1fr 1fr}
+    .cliprow .clip:nth-child(3){grid-column:span 2}
+  }
+  @media(max-width:560px){
+    .hero{padding:64px 0 16px}
+    section{padding:58px 0}
+    .nav nav a.link{display:none}
+    .visual{padding:20px}
+    .flow{flex-direction:column;gap:10px}
+    .flow .arr{display:none}
+    .flow .f{max-width:none;width:100%}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto}
+    .reveal{opacity:1;transform:none}
+  }
 </style>
 </head>
 <body>
 <header><div class="wrap nav">
-  <div class="wordmark">ClipsDoneForYou<span class="tld">.com</span></div>
-  <nav><a href="#how">How it works</a><a href="#pricing">Pricing</a><a class="btn coral" href="#pricing">Start free</a></nav>
+  <div class="wordmark" data-wiz>ClipsDoneForYou<span class="tld">.com</span></div>
+  <nav><a class="link" href="#how">How it works</a><a class="link" href="#pricing">Pricing</a><a class="btn coral" data-wiz>Start free</a></nav>
 </div></header>
 
 <div class="wrap hero">
-  <h1>Your videos in.<br>Clips posted out.</h1>
-  <p>Connect your channels once. Your clips get made and posted every day — you do nothing.</p>
-  <a class="btn coral" href="#pricing">Start free — 10 clips on us</a>
-  <div class="note">No card upfront. Posting pauses at 10 until you subscribe.</div>
-  <div class="visual">
-    <div class="timeline"><div class="seg" style="left:12%;width:9%"></div><div class="seg" style="left:44%;width:11%"></div><div class="seg" style="left:74%;width:8%"></div></div>
-    <div class="arrow">↓</div>
+  <div class="eyebrow reveal"><span class="pip"></span>Posting on autopilot</div>
+  <h1 class="reveal">Your videos in.<br>Clips posted out.</h1>
+  <p class="reveal">Connect your channels once. Your clips get made and posted every day — you do nothing.</p>
+  <div class="cta-row reveal">
+    <a class="btn coral lg" data-wiz>Start free — 10 clips on us <span class="ar">→</span></a>
+    <div class="note">No card upfront. Posting pauses at 10 until you subscribe.</div>
+  </div>
+
+  <div class="visual reveal">
+    <div class="cap"><span>Your long video</span><span class="live"><i></i>Live</span></div>
+    <div class="timeline">
+      <span class="tick" style="left:20%"></span><span class="tick" style="left:40%"></span><span class="tick" style="left:60%"></span><span class="tick" style="left:80%"></span>
+      <div class="seg" style="left:12%;width:9%;animation-delay:.2s"></div>
+      <div class="seg" style="left:44%;width:11%;animation-delay:.35s"></div>
+      <div class="seg" style="left:74%;width:8%;animation-delay:.5s"></div>
+      <div class="scan"></div>
+    </div>
+    <div class="arrow"><svg width="26" height="30" viewBox="0 0 26 30" fill="none"><path d="M13 2v22m0 0l-8-8m8 8l8-8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
     <div class="cliprow">
-      <div class="clip"><div class="thumb"></div><b>Best moment #1</b><span>✓ Posted</span></div>
-      <div class="clip"><div class="thumb"></div><b>Best moment #2</b><span>✓ Posted</span></div>
-      <div class="clip"><div class="thumb"></div><b>Best moment #3</b><span>✓ Posted</span></div>
+      <div class="clip" data-wiz><div class="thumb"><div class="play"></div></div><b>Best moment #1</b><span class="posted">✓ Posted</span></div>
+      <div class="clip" data-wiz><div class="thumb"><div class="play"></div></div><b>Best moment #2</b><span class="posted">✓ Posted</span></div>
+      <div class="clip" data-wiz><div class="thumb"><div class="play"></div></div><b>Best moment #3</b><span class="posted">✓ Posted</span></div>
     </div>
   </div>
 </div>
 
 <section id="how"><div class="wrap">
-  <h2>Three steps. Then it just runs.</h2>
-  <p class="sub">Set up in minutes, in plain chat — like texting an assistant.</p>
+  <div class="sec-head reveal">
+    <h2>Three steps. Then it just runs.</h2>
+    <p class="sub">Set up in minutes, in plain chat — like texting an assistant.</p>
+  </div>
   <div class="steps">
-    <div class="step"><div class="n">1</div><b>Create your account</b><p>First name, email, password.</p></div>
-    <div class="step"><div class="n">2</div><b>Connect your channels</b><p>YouTube, TikTok, Instagram — one tap each, add as many as you have.</p></div>
-    <div class="step"><div class="n">3</div><b>You're live</b><p>Clips start posting. Steer everything from the chat.</p></div>
+    <div class="step card-click reveal" data-wiz><div class="n">1</div><b>Create your account</b><p>First name, email, password.</p></div>
+    <div class="step card-click reveal" data-wiz><div class="n">2</div><b>Connect your channels</b><p>YouTube, TikTok, Instagram — one tap each, add as many as you have.</p></div>
+    <div class="step card-click reveal" data-wiz><div class="n">3</div><b>You're live</b><p>Clips start posting. Steer everything from the chat.</p></div>
   </div>
 </div></section>
 
-<section id="pricing" style="background:var(--soft)"><div class="wrap">
-  <h2>Flat pricing. No credits.</h2>
-  <p class="sub">Every plan starts with 10 free posted clips.</p>
-  <div class="plans">
-    <div class="plan"><span class="tag">Solo</span><div class="price">$19<small>/mo</small></div>
-      <ul><li>1 channel</li><li>3 clips a day · ~90/mo</li><li>Shorts, any length you pick</li></ul>
-      <a class="btn" href="#">Start free</a></div>
-    <div class="plan hot"><span class="tag">Multi · Most popular</span><div class="price">$39<small>/mo</small></div>
-      <ul><li>Up to 3 channels</li><li>6 clips a day per channel · ~180/mo</li><li>Shorts + ~10-min cuts</li><li>Back-catalog mining</li></ul>
-      <a class="btn coral" href="#">Start free</a></div>
-    <div class="plan"><span class="tag">Done-for-you</span><div class="price">$299<small>/mo</small></div>
-      <ul><li>Fully managed for you</li><li>Max pace, up to 10 clips a day</li><li>We handle everything</li></ul>
-      <a class="btn" href="#">Start free</a></div>
+<section id="pricing"><div class="wrap">
+  <div class="sec-head reveal">
+    <h2>Flat pricing. No credits.</h2>
+    <p class="sub">Every plan starts with 10 free posted clips.</p>
   </div>
-  <div style="height:30px"></div>
-  <div class="flow">
+  <div class="plans">
+    <div class="plan card-click reveal" data-wiz><span class="tag">Solo</span><div class="price">$19<small>/mo</small></div>
+      <ul><li>1 channel</li><li>3 clips a day · ~90/mo</li><li>Shorts, any length you pick</li></ul>
+      <span class="btn">Start free</span></div>
+    <div class="plan hot card-click reveal" data-wiz><span class="tag">Multi · Most popular</span><div class="price">$39<small>/mo</small></div>
+      <ul><li>Up to 3 channels</li><li>6 clips a day per channel · ~180/mo</li><li>Shorts + ~10-min cuts</li><li>Back-catalog mining</li></ul>
+      <span class="btn coral">Start free</span></div>
+    <div class="plan card-click reveal" data-wiz><span class="tag">Done-for-you</span><div class="price">$299<small>/mo</small></div>
+      <ul><li>Fully managed for you</li><li>Max pace, up to 10 clips a day</li><li>We handle everything</li></ul>
+      <span class="btn">Start free</span></div>
+  </div>
+  <div class="overage flow reveal">
     <div class="f">90–180 clips included</div><div class="arr">→</div>
     <div class="f">No pause past your plan</div><div class="arr">→</div>
-    <div class="f">+$0.25 per extra clip</div><div class="arr">→</div>
+    <div class="f mark">+$0.25 per extra clip</div><div class="arr">→</div>
     <div class="f">One monthly bill</div>
   </div>
 </div></section>
 
 <section><div class="wrap">
-  <h2>Questions</h2>
-  <div style="height:20px"></div>
-  <div class="faq">
+  <div class="sec-head reveal"><h2>Questions</h2></div>
+  <div class="faq reveal">
     <div><b>Do I have to edit anything?</b><p>No. Clipping, titles, and posting are done for you.</p></div>
     <div><b>How do I change things?</b><p>Just say it in the chat — "post 5 a day", "make TikTok clips shorter", "clip this video".</p></div>
     <div><b>What formats?</b><p>Shorts on every plan. ~10-minute cuts on Multi and up. Lengths are set per channel.</p></div>
@@ -125,6 +279,92 @@
   </div>
 </div></section>
 
-<footer>ClipsDoneForYou.com — your videos, clipped and posted for you.</footer>
+<footer>
+  <div class="wordmark">ClipsDoneForYou<span class="tld">.com</span></div>
+  <div>Your videos, clipped and posted for you.</div>
+</footer>
+
+<!-- ---------- wizard ---------- -->
+<div class="modal" id="wiz" aria-hidden="true">
+  <div class="scrim" data-close></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Start free">
+    <button class="x" data-close aria-label="Close">×</button>
+    <div class="prog"><i class="on"></i><i></i><i></i></div>
+
+    <div class="pane" data-pane="1">
+      <div class="step-no">Step 1 of 3</div>
+      <h3>Create your account</h3>
+      <p class="ps">10 posted clips on us. No card required.</p>
+      <div class="field"><label>First name</label><input type="text" placeholder="Jordan" autocomplete="given-name"></div>
+      <div class="field"><label>Email</label><input type="email" placeholder="you@email.com" autocomplete="email"></div>
+      <div class="field"><label>Password</label><input type="password" placeholder="••••••••" autocomplete="new-password"></div>
+      <button class="btn coral wiz-cta" data-next>Continue <span class="ar">→</span></button>
+    </div>
+
+    <div class="pane" data-pane="2" hidden>
+      <div class="step-no">Step 2 of 3</div>
+      <h3>Connect your channels</h3>
+      <p class="ps">Pick where your clips should post. Add as many as you have.</p>
+      <div class="chips">
+        <div class="chip" data-chip><span>YouTube</span><span class="box"></span></div>
+        <div class="chip" data-chip><span>TikTok</span><span class="box"></span></div>
+        <div class="chip" data-chip><span>Instagram</span><span class="box"></span></div>
+      </div>
+      <button class="btn coral wiz-cta" data-next>Continue <span class="ar">→</span></button>
+    </div>
+
+    <div class="pane" data-pane="3" hidden>
+      <div class="done-ring"></div>
+      <h3 style="text-align:center">You're live.</h3>
+      <p class="ps" style="text-align:center">Clips start posting today. Steer everything from the chat.</p>
+      <button class="btn coral wiz-cta" data-close>Open the chat <span class="ar">→</span></button>
+      <div class="wiz-foot">Posting pauses at 10 free clips until you subscribe.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // header shadow on scroll
+  var hd=document.querySelector('header');
+  var onScroll=function(){hd.classList.toggle('scrolled',window.scrollY>8)};
+  onScroll();window.addEventListener('scroll',onScroll,{passive:true});
+
+  // scroll reveal
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}});
+    },{threshold:.12,rootMargin:'0px 0px -8% 0px'});
+    document.querySelectorAll('.reveal').forEach(function(el,i){
+      el.style.transitionDelay=(Math.min(i,6)*45)+'ms';io.observe(el);
+    });
+  }else{document.querySelectorAll('.reveal').forEach(function(el){el.classList.add('in')});}
+
+  // wizard
+  var modal=document.getElementById('wiz');
+  var panes=modal.querySelectorAll('[data-pane]');
+  var dots=modal.querySelectorAll('.prog i');
+  var cur=1;
+  function show(n){
+    cur=n;
+    panes.forEach(function(p){p.hidden=(+p.dataset.pane!==n)});
+    dots.forEach(function(d,i){d.classList.toggle('on',i<n)});
+  }
+  function open(){modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';show(1);}
+  function close(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.style.overflow='';}
+
+  document.querySelectorAll('[data-wiz]').forEach(function(el){
+    el.addEventListener('click',function(e){e.preventDefault();open();});
+  });
+  modal.querySelectorAll('[data-close]').forEach(function(el){el.addEventListener('click',close)});
+  modal.querySelectorAll('[data-next]').forEach(function(el){
+    el.addEventListener('click',function(){show(Math.min(cur+1,3));});
+  });
+  modal.querySelectorAll('[data-chip]').forEach(function(c){
+    c.addEventListener('click',function(){c.classList.toggle('on');});
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&modal.classList.contains('open'))close();});
+})();
+</script>
 </body>
 </html>
