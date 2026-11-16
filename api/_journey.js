@@ -108,6 +108,27 @@ async function reconcile(user) {
     j.changeNoteSent = true;
   }
 
+  // clips made but not posted (engine marks them 'failed' + auto-retries, e.g.
+  // the channel hit YouTube's daily upload cap) -> one honest note per channel.
+  j.retryNotice = j.retryNotice || {};
+  const failedByPlat = {};
+  clipsR.rows.filter((c) => c.status === 'failed').forEach((c) => { const p = c.platform || 'youtube'; failedByPlat[p] = (failedByPlat[p] || 0) + 1; });
+  if (Object.keys(failedByPlat).length) {
+    const errJobs = await q("SELECT channel, payload FROM jobs WHERE user_id=$1 AND status='error' ORDER BY id DESC", [user.id]);
+    const reasonByPlat = {};
+    errJobs.rows.forEach((r) => { const pf = (r.channel || '').split(':')[0]; if (pf && reasonByPlat[pf] === undefined) reasonByPlat[pf] = (r.payload && r.payload.engine_error) || ''; });
+    for (const p of Object.keys(failedByPlat)) {
+      if (j.firstPosts[p] || j.retryNotice[p]) continue;
+      const daily = /daily|uploadlimit|youtube_channel_daily_limit/i.test(reasonByPlat[p] || '');
+      await agent(user.id, chanKey(p, handleMap[p]), daily
+        ? "A few clips are ready, but this channel hit YouTube's daily upload limit — I'll post them automatically as soon as it resets."
+        : "A few clips are ready but couldn't post just yet — I'll keep trying; they'll go up automatically.");
+      j.retryNotice[p] = true;
+    }
+  }
+  // once a channel has posts live, clear its retry notice so a later failure re-notifies
+  Object.keys(j.firstPosts).forEach((p) => { if (j.retryNotice[p]) delete j.retryNotice[p]; });
+
   // ---- account-level events -> 'all' ----
   if (plan !== 'free' && j.subConfirmedPlan !== plan) {
     await agent(user.id, 'all', "You're on " + plan + ' — your banked clips are posting now, and each one shows up in its channel. Back to daily from here.');
