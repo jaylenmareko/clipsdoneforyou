@@ -459,14 +459,10 @@
 
   <div class="aview" data-view="clips" hidden>
     <h2>Your clips</h2>
-    <p class="sub2">One folder per source video. Your clips land here as they're made.</p>
     <div id="clipsControls"></div>
     <p id="clipsMsg" class="ctrlmsg" hidden></p>
     <div class="foldergrid" id="folderGrid"></div>
-    <div id="clipsEmpty" class="connectcard" style="text-align:center" hidden>
-      <b>No clips yet</b>
-      <p style="margin:6px 0 0">Connect a channel and your clips will land here.</p>
-    </div>
+    <div id="clipsEmpty" hidden></div>
   </div>
 
   <div class="aview" data-view="setup" hidden>
@@ -536,9 +532,7 @@
   <div class="sheet" role="dialog" aria-modal="true" aria-label="Connect your channel">
     <h3 style="margin-bottom:4px">Connect your channel</h3>
     <p class="ps">Clips post to the channel you connect.</p>
-    <div class="connectcard" style="border:none;box-shadow:none;padding:0;margin:14px 0 0">
-      <div class="connrow"><span class="pl">YouTube</span><button class="connbtn" data-conn data-platform="youtube">Connect</button></div>
-    </div>
+    <div class="connectcard" id="gateConnect" style="border:none;box-shadow:none;padding:0;margin:14px 0 0"></div>
     <p id="gateCount" class="ps" style="margin:14px 0 0">Not connected yet</p>
     <p id="gateMsg" style="color:var(--mut);font-size:13.5px;margin-top:6px"></p>
     <button class="btn coral wiz-cta" id="startClipping" disabled>Start clipping <span class="ar">→</span></button>
@@ -705,7 +699,7 @@
   // ---- connect flow (first-entry gate + Setup) ----
   var gateMsg=$('#gateMsg');
   var gate=$('#gate');
-  var SUPPORTED=$$('#gate [data-conn]').map(function(b){return b.dataset.platform;}); // platforms we offer
+  var SUPPORTED=['youtube']; // platforms we offer (drives the shared connect step)
   var PLABEL={youtube:'YouTube',tiktok:'TikTok',instagram:'Instagram',facebook:'Facebook',linkedin:'LinkedIn',x:'X'};
   function plabel(p){return PLABEL[p]||(p.charAt(0).toUpperCase()+p.slice(1));}
   function connectedCount(){var n=0;for(var k in connected){if(connected[k])n++;}return n;}
@@ -741,7 +735,19 @@
       showMsg(m);
     }).catch(function(){b.textContent='Connect';if(inGate)ssDel('cdfy_gate_active');showMsg('Could not start connecting — please try again.');});
   }
-  $$('[data-conn]').forEach(function(b){b.addEventListener('click',function(){startConnect(b);});});
+  // The connect wizard's step-1 component — one implementation, rendered in both
+  // the first-entry gate and the Clips empty state. Same markup, same startConnect.
+  function fillConnectRows(container){
+    container.innerHTML='';
+    SUPPORTED.forEach(function(p){
+      var row=document.createElement('div');row.className='connrow';
+      var sp=document.createElement('span');sp.className='pl';sp.textContent=plabel(p);
+      var b=document.createElement('button');b.className='connbtn';b.setAttribute('data-conn','');b.setAttribute('data-platform',p);b.textContent='Connect';
+      b.addEventListener('click',function(){startConnect(b);});
+      row.appendChild(sp);row.appendChild(b);container.appendChild(row);
+    });
+  }
+  var gateConnect=$('#gateConnect');if(gateConnect)fillConnectRows(gateConnect);
 
   // delete the account's provider profile (removes all channels, frees the slot)
   function doDisconnect(onDone){
@@ -834,7 +840,7 @@
     api('/api/clips').then(function(res){
       var folders=(res.data&&res.data.folders)||[];
       grid.innerHTML='';
-      if(!folders.length){empty.hidden=false;return;}
+      if(!folders.length){renderClipsEmpty();return;}
       empty.hidden=true;
       folders.forEach(function(f){
         var parts=[f.total+' clip'+(f.total===1?'':'s')];
@@ -845,7 +851,25 @@
         d.querySelector('b').textContent=f.title;d.querySelector('span').textContent=parts.join(' · ');
         grid.appendChild(d);
       });
-    }).catch(function(){grid.innerHTML='';if(empty)empty.hidden=false;});
+    }).catch(function(){grid.innerHTML='';renderClipsEmpty();});
+  }
+  // Empty Clips tab: no connection -> wizard step 1 inline (same component +
+  // connect process as the gate). Connected but no clips yet -> one plain line.
+  function renderClipsEmpty(){
+    var box=$('#clipsEmpty');if(!box)return;
+    box.hidden=false;box.innerHTML='';box.removeAttribute('style');
+    if(connectedCount()>0){
+      box.className='connectcard';box.style.textAlign='center';
+      box.innerHTML='<p style="margin:0">Your first clips are being made.</p>';
+      return;
+    }
+    box.className='';
+    var card=document.createElement('div');card.className='connectcard';
+    var h=document.createElement('b');h.style.display='block';h.textContent='Connect your channel';
+    var sub=document.createElement('p');sub.className='ps';sub.style.cssText='margin:4px 0 12px';sub.textContent='Clips post to the channel you connect.';
+    var rows=document.createElement('div');fillConnectRows(rows);
+    card.appendChild(h);card.appendChild(sub);card.appendChild(rows);box.appendChild(card);
+    applyConnected();
   }
 
   // ---- setup ----
@@ -913,8 +937,7 @@
     function chead(handle,label){var d=document.createElement('div');d.className='chanhead';d.innerHTML='<span></span><small></small>';d.querySelector('span').textContent=handle;d.querySelector('small').textContent=label;return d;}
 
     var tog=document.createElement('button');tog.className='ctrltoggle'+(ctrlsOpen?' open':'');
-    tog.innerHTML='<span><span class="chev">▶</span> Posting controls</span><span class="cnt"></span>';
-    tog.querySelector('.cnt').textContent=platforms.length?(platforms.length+' channel'+(platforms.length===1?'':'s')):'manage channels';
+    tog.innerHTML='<span><span class="chev">▶</span> Manage Posting Controls</span>';
     root.appendChild(tog);
     var body=document.createElement('div');body.className='ctrlbody';body.hidden=!ctrlsOpen;root.appendChild(body);
     tog.addEventListener('click',function(){ctrlsOpen=!ctrlsOpen;tog.classList.toggle('open',ctrlsOpen);body.hidden=!ctrlsOpen;});
