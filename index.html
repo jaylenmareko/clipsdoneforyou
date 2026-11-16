@@ -423,13 +423,11 @@
       <div style="height:16px"></div>
       <div id="chatLog"></div>
       <div class="connectcard">
-        <b>First step: connect your accounts</b>
-        <p>Clips post to the channels you connect. <span id="connCount">0 of 3 connected</span>.</p>
+        <b>First step: connect your channel</b>
+        <p>Clips post to your YouTube channel. <span id="connCount">Not connected yet</span>.</p>
         <div class="connrow"><span class="pl">YouTube</span><button class="connbtn" data-conn data-platform="youtube">Connect</button></div>
-        <div class="connrow"><span class="pl">TikTok</span><button class="connbtn" data-conn data-platform="tiktok">Connect</button></div>
-        <div class="connrow"><span class="pl">Instagram</span><button class="connbtn" data-conn data-platform="instagram">Connect</button></div>
         <p id="connMsg" style="margin-top:10px"></p>
-        <a href="#" id="disconnectAll" class="disconnect-link" hidden>Disconnect all accounts</a>
+        <a href="#" id="disconnectAll" class="disconnect-link" hidden>Disconnect channel</a>
       </div>
     </div>
   </div>
@@ -487,12 +485,10 @@
 
     <div class="pane" data-pane="2" hidden>
       <div class="step-no">Step 2 of 3</div>
-      <h3>Connect your channels</h3>
-      <p class="ps">Pick where your clips should post. Add as many as you have.</p>
+      <h3>Connect your channel</h3>
+      <p class="ps">Your clips post to your YouTube channel. You'll connect it next.</p>
       <div class="chips">
-        <div class="chip" data-chip><span>YouTube</span><span class="box"></span></div>
-        <div class="chip" data-chip><span>TikTok</span><span class="box"></span></div>
-        <div class="chip" data-chip><span>Instagram</span><span class="box"></span></div>
+        <div class="chip on" data-chip><span>YouTube</span><span class="box"></span></div>
       </div>
       <button class="btn coral wiz-cta" data-next>Continue <span class="ar">→</span></button>
     </div>
@@ -510,15 +506,13 @@
 <!-- ---------- first-entry connect gate ---------- -->
 <div class="modal" id="gate" aria-hidden="true">
   <div class="scrim"></div>
-  <div class="sheet" role="dialog" aria-modal="true" aria-label="Connect your accounts">
-    <h3 style="margin-bottom:4px">Connect your accounts</h3>
-    <p class="ps">Clips post to the channels you connect.</p>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Connect your channel">
+    <h3 style="margin-bottom:4px">Connect your channel</h3>
+    <p class="ps">Clips post to the channel you connect.</p>
     <div class="connectcard" style="border:none;box-shadow:none;padding:0;margin:14px 0 0">
       <div class="connrow"><span class="pl">YouTube</span><button class="connbtn" data-conn data-platform="youtube">Connect</button></div>
-      <div class="connrow"><span class="pl">TikTok</span><button class="connbtn" data-conn data-platform="tiktok">Connect</button></div>
-      <div class="connrow"><span class="pl">Instagram</span><button class="connbtn" data-conn data-platform="instagram">Connect</button></div>
     </div>
-    <p id="gateCount" class="ps" style="margin:14px 0 0">0 of 3 connected</p>
+    <p id="gateCount" class="ps" style="margin:14px 0 0">Not connected yet</p>
     <p id="gateMsg" style="color:var(--mut);font-size:13.5px;margin-top:6px"></p>
     <button class="btn coral wiz-cta" id="startClipping" disabled>Start clipping <span class="ar">→</span></button>
     <div class="wiz-foot"><a href="#" id="gateLater">I'll connect later</a></div>
@@ -685,11 +679,11 @@
       if(c){b.classList.add('done');b.textContent='Connected'+(c.handle?' · '+c.handle:'');}
       else{b.classList.remove('done');b.textContent='Connect';}
     });
-    var n=connectedCount(),label=n+' of 3 connected';
+    var n=connectedCount(),label=(n===0?'Not connected yet':'Connected');
     var cc=$('#connCount');if(cc)cc.textContent=label;
     var gc=$('#gateCount');if(gc)gc.textContent=label;
     var sc=$('#startClipping');if(sc)sc.disabled=(n===0);
-    var dl=$('#disconnectAll');if(dl){dl.hidden=(n===0);if(n===0){dl.classList.remove('confirm');dl.textContent='Disconnect all accounts';}}
+    var dl=$('#disconnectAll');if(dl){dl.hidden=(n===0);if(n===0){dl.classList.remove('confirm');dl.textContent='Disconnect channel';}}
   }
   function refreshStatus(){
     if(!userId())return Promise.resolve(0);
@@ -728,14 +722,14 @@
     e.preventDefault();
     if(!disconnectAll.classList.contains('confirm')){
       disconnectAll.classList.add('confirm');
-      disconnectAll.textContent='This removes every connected channel — tap again to confirm';
+      disconnectAll.textContent='Disconnect your channel? Tap again to confirm';
       return;
     }
     disconnectAll.classList.remove('confirm');
     disconnectAll.textContent='Disconnecting…';
     if(connMsg)connMsg.textContent='';
     api('/api/disconnect','POST',{}).then(function(res){
-      if(res.status===200){refreshStatus();if(connMsg)connMsg.textContent='Your channels were disconnected. You can connect again anytime.';}
+      if(res.status===200){refreshStatus();if(connMsg)connMsg.textContent='Your channel was disconnected. You can connect again anytime.';}
       else{disconnectAll.textContent='Disconnect all accounts';if(connMsg)connMsg.textContent='Could not disconnect — please try again.';}
     }).catch(function(){disconnectAll.textContent='Disconnect all accounts';if(connMsg)connMsg.textContent='Could not disconnect — please try again.';});
   });
