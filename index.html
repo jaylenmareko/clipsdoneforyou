@@ -268,9 +268,19 @@
   .auth-err{background:var(--coral-soft);color:var(--coral-dk);border:1px solid rgba(255,90,78,.25);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;margin-bottom:12px}
   .sethead{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--mut-2);margin:22px 0 10px}
   .sethead:first-child{margin-top:4px}
-  #setupBody .setrow.col{flex-direction:column;align-items:stretch;gap:10px}
-  #setupBody textarea{width:100%;min-height:70px;font:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--soft-2);resize:vertical;color:var(--ink)}
-  #setupBody textarea:focus{outline:none;border-color:var(--coral);box-shadow:0 0 0 3px rgba(255,90,78,.12)}
+  #setupBody .setrow.col,#clipsControls .setrow.col{flex-direction:column;align-items:stretch;gap:10px}
+  #setupBody textarea,#clipsControls textarea{width:100%;min-height:70px;font:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--soft-2);resize:vertical;color:var(--ink)}
+  #setupBody textarea:focus,#clipsControls textarea:focus{outline:none;border-color:var(--coral);box-shadow:0 0 0 3px rgba(255,90,78,.12)}
+  #setupBody input.setinput{font:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--soft-2);color:var(--ink);min-width:220px}
+  #setupBody input.setinput:focus{outline:none;border-color:var(--coral);box-shadow:0 0 0 3px rgba(255,90,78,.12)}
+  #clipsControls .ctrltoggle{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:13px 16px;font:inherit;font-weight:700;font-size:14px;color:var(--ink);cursor:pointer;margin-bottom:14px}
+  #clipsControls .ctrltoggle .chev{transition:transform .2s var(--ease);color:var(--mut-2);font-size:12px}
+  #clipsControls .ctrltoggle.open .chev{transform:rotate(90deg)}
+  #clipsControls .ctrltoggle .cnt{color:var(--mut);font-weight:600;font-size:13px}
+  #clipsControls .ctrlbody{margin-bottom:20px}
+  #clipsControls .chanhead{font-size:13px;font-weight:800;color:var(--ink-2);margin:20px 0 10px;display:flex;align-items:center;gap:8px}
+  #clipsControls .chanhead small{color:var(--mut-2);font-weight:600;font-size:12px}
+  .ctrlmsg{color:var(--mut);font-size:13px;margin:-4px 0 12px}
   .toggle{border:1px solid var(--line-2);background:#fff;color:var(--ink-2);padding:8px 16px;border-radius:var(--r-pill);font:inherit;font-weight:700;font-size:13px;cursor:pointer}
   .toggle.on{background:var(--ok);border-color:var(--ok);color:#fff}
   .savednote{font-size:12.5px;color:var(--ok);font-weight:700;margin-left:10px;opacity:0;transition:opacity .2s var(--ease)}
@@ -450,6 +460,8 @@
   <div class="aview" data-view="clips" hidden>
     <h2>Your clips</h2>
     <p class="sub2">One folder per source video. Your clips land here as they're made.</p>
+    <div id="clipsControls"></div>
+    <p id="clipsMsg" class="ctrlmsg" hidden></p>
     <div class="foldergrid" id="folderGrid"></div>
     <div id="clipsEmpty" class="connectcard" style="text-align:center" hidden>
       <b>No clips yet</b>
@@ -459,7 +471,7 @@
 
   <div class="aview" data-view="setup" hidden>
     <h2>Setup</h2>
-    <p class="sub2">Your account and per-channel settings.</p>
+    <p class="sub2">Your account. Posting controls live on the Clips tab.</p>
     <div id="setupBody"></div>
   </div>
 
@@ -715,9 +727,10 @@
   }
   function startConnect(b){
     if(b.classList.contains('done')||!userId())return;
-    var inGate=!!b.closest('#gate');var msg=inGate?gateMsg:$('#setupMsg');
+    var inGate=!!b.closest('#gate');var msg=inGate?gateMsg:$('#clipsMsg');
+    function showMsg(t){if(!msg)return;msg.textContent=t;if(!inGate)msg.hidden=!t;}
     if(inGate)ssSet('cdfy_gate_active','1'); // so the gate re-opens to show the result on return
-    b.textContent='Opening…';if(msg)msg.textContent='';
+    b.textContent='Opening…';showMsg('');
     api('/api/connect','POST',{username:userId(),platform:b.dataset.platform}).then(function(res){
       var d=res.data||{};
       if(d.authorize_url){window.location.href=d.authorize_url;return;}
@@ -725,8 +738,8 @@
       var m=d.error==='profile_limit'?'We’re at capacity for new channel connections right now — nothing on your end. We’re adding more; try again shortly.'
            :d.error==='not_configured'?'Connecting isn’t switched on yet — try again in a bit.'
            :'Could not start connecting — please try again.';
-      if(msg)msg.textContent=m;
-    }).catch(function(){b.textContent='Connect';if(inGate)ssDel('cdfy_gate_active');if(msg)msg.textContent='Could not start connecting — please try again.';});
+      showMsg(m);
+    }).catch(function(){b.textContent='Connect';if(inGate)ssDel('cdfy_gate_active');showMsg('Could not start connecting — please try again.');});
   }
   $$('[data-conn]').forEach(function(b){b.addEventListener('click',function(){startConnect(b);});});
 
@@ -816,6 +829,7 @@
 
   // ---- clips ----
   function renderClips(){
+    renderClipsControls();
     var grid=$('#folderGrid'),empty=$('#clipsEmpty');if(!grid)return;
     api('/api/clips').then(function(res){
       var folders=(res.data&&res.data.folders)||[];
@@ -837,85 +851,156 @@
   // ---- setup ----
   var LENGTHS=[['auto','Auto (30–105s)'],['under30','Under 30s'],['30-60','30–60s'],['60-90','60–90s'],['90-180','90–180s']];
   var PACES=[1,2,3,5,6,10];
-  function csFor(p){var cs=(S&&S.channelSettings)||[];for(var i=0;i<cs.length;i++)if(cs[i].platform===p)return cs[i];return {platform:p,shortsLength:'auto',mediumForm:false};}
+  function csFor(p){var cs=(S&&S.channelSettings)||[];for(var i=0;i<cs.length;i++)if(cs[i].platform===p)return cs[i];return {platform:p,shortsLength:'auto',mediumForm:false,paused:null,dailyPace:null,rules:''};}
   function saveSetting(body,note){return api('/api/settings','POST',body).then(function(){if(note){note.classList.add('show');setTimeout(function(){note.classList.remove('show');},1400);}});}
+  // Setup = account basics only. Name, email, password. Nothing else.
   function renderSetup(){
     var root=$('#setupBody');if(!root||!S||!S.user)return;
+    var u=S.user;
+    root.innerHTML='';
+    function head(t){var d=document.createElement('div');d.className='sethead';d.textContent=t;return d;}
+    function field(title,desc){var r=document.createElement('div');r.className='setrow col';var b=document.createElement('div');b.style.width='100%';b.innerHTML='<b></b><p></p>';b.querySelector('b').textContent=title;b.querySelector('p').textContent=desc;r.appendChild(b);return {row:r,box:b,bold:b.querySelector('b')};}
+    function note(parent,txt){var n=document.createElement('span');n.className='savednote';n.textContent=txt||'Saved';parent.appendChild(n);return n;}
+    function err(box){var p=document.createElement('p');p.style.cssText='color:var(--coral-dk);font-size:12.5px;font-weight:600;margin:0';p.hidden=true;box.appendChild(p);return p;}
+
+    root.appendChild(head('Account'));
+
+    // Name
+    var nf=field('Name','Your first name.');var nn=note(nf.bold);
+    var nrow=document.createElement('div');nrow.style.cssText='display:flex;gap:8px;align-items:center';
+    var ni=document.createElement('input');ni.className='setinput';ni.type='text';ni.value=u.firstName||'';ni.placeholder='First name';
+    var nsave=document.createElement('button');nsave.className='connbtn';nsave.textContent='Save';
+    nrow.appendChild(ni);nrow.appendChild(nsave);nf.row.appendChild(nrow);root.appendChild(nf.row);
+    nsave.addEventListener('click',function(){var v=ni.value.trim();if(!v||v===(u.firstName||''))return;nsave.disabled=true;nsave.textContent='Saving…';saveSetting({firstName:v},nn).then(function(){u.firstName=v;nsave.disabled=false;nsave.textContent='Save';}).catch(function(){nsave.disabled=false;nsave.textContent='Save';});});
+
+    // Email
+    var ef=field('Email','Used to sign in.');var en=note(ef.bold);var eerr=err(ef.box);
+    var erow=document.createElement('div');erow.style.cssText='display:flex;gap:8px;align-items:center';
+    var ei=document.createElement('input');ei.className='setinput';ei.type='email';ei.value=u.email||'';ei.placeholder='you@email.com';
+    var esave=document.createElement('button');esave.className='connbtn';esave.textContent='Save';
+    erow.appendChild(ei);erow.appendChild(esave);ef.row.appendChild(erow);root.appendChild(ef.row);
+    esave.addEventListener('click',function(){var v=ei.value.trim().toLowerCase();eerr.hidden=true;if(!v||v===(u.email||''))return;esave.disabled=true;esave.textContent='Saving…';
+      api('/api/settings','POST',{email:v}).then(function(res){esave.disabled=false;esave.textContent='Save';
+        if(res.data&&res.data.ok){u.email=v;en.classList.add('show');setTimeout(function(){en.classList.remove('show');},1400);}
+        else{eerr.hidden=false;eerr.textContent=(res.data&&res.data.error==='email_taken')?'That email is already in use.':(res.data&&res.data.error==='bad_email')?'That doesn’t look like a valid email.':'Could not update email — try again.';}
+      }).catch(function(){esave.disabled=false;esave.textContent='Save';eerr.hidden=false;eerr.textContent='Could not update email — try again.';});});
+
+    // Password
+    var pf=field('Password','Change your password.');var pn2=note(pf.bold,'Changed');var perr=err(pf.box);
+    var prow=document.createElement('div');prow.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+    var cur=document.createElement('input');cur.className='setinput';cur.type='password';cur.placeholder='Current password';cur.autocomplete='current-password';
+    var nw=document.createElement('input');nw.className='setinput';nw.type='password';nw.placeholder='New password (min 6)';nw.autocomplete='new-password';
+    var psave=document.createElement('button');psave.className='connbtn';psave.textContent='Change';
+    prow.appendChild(cur);prow.appendChild(nw);prow.appendChild(psave);pf.row.appendChild(prow);root.appendChild(pf.row);
+    psave.addEventListener('click',function(){perr.hidden=true;if(!cur.value||nw.value.length<6){perr.hidden=false;perr.textContent='Enter your current password and a new one (6+ characters).';return;}psave.disabled=true;psave.textContent='Changing…';
+      api('/api/settings','POST',{currentPassword:cur.value,newPassword:nw.value}).then(function(res){psave.disabled=false;psave.textContent='Change';
+        if(res.data&&res.data.ok){cur.value='';nw.value='';pn2.classList.add('show');setTimeout(function(){pn2.classList.remove('show');},1600);}
+        else{perr.hidden=false;perr.textContent=(res.data&&res.data.error==='wrong_password')?'Current password is incorrect.':(res.data&&res.data.error==='weak_password')?'New password must be at least 6 characters.':'Could not change password — try again.';}
+      }).catch(function(){psave.disabled=false;psave.textContent='Change';perr.hidden=false;perr.textContent='Could not change password — try again.';});});
+  }
+
+  // Clips tab controls: account defaults + one block per connected channel, plus
+  // connect/disconnect. Collapsible so the clip library stays primary. Every
+  // control writes the same column chat does — one source of truth.
+  var ctrlsOpen=false;
+  function renderClipsControls(){
+    var root=$('#clipsControls');if(!root||!S||!S.user)return;
     var u=S.user,multi=(u.plan==='Multi'||u.plan==='Done-for-you');
+    var platforms=Object.keys(connected||{}).filter(function(p){return connected[p];});
     root.innerHTML='';
     function row(html){var d=document.createElement('div');d.className='setrow';d.innerHTML=html;return d;}
     function head(t){var d=document.createElement('div');d.className='sethead';d.textContent=t;return d;}
+    function chead(handle,label){var d=document.createElement('div');d.className='chanhead';d.innerHTML='<span></span><small></small>';d.querySelector('span').textContent=handle;d.querySelector('small').textContent=label;return d;}
 
-    root.appendChild(head('Account'));
-    root.appendChild(row('<div><b>Signed in</b><p>'+u.email+'</p></div><div style="color:var(--mut);font-size:13.5px">'+(u.plan==='free'?'Free plan':u.plan+' plan')+'</div>'));
+    var tog=document.createElement('button');tog.className='ctrltoggle'+(ctrlsOpen?' open':'');
+    tog.innerHTML='<span><span class="chev">▶</span> Posting controls</span><span class="cnt"></span>';
+    tog.querySelector('.cnt').textContent=platforms.length?(platforms.length+' channel'+(platforms.length===1?'':'s')):'manage channels';
+    root.appendChild(tog);
+    var body=document.createElement('div');body.className='ctrlbody';body.hidden=!ctrlsOpen;root.appendChild(body);
+    tog.addEventListener('click',function(){ctrlsOpen=!ctrlsOpen;tog.classList.toggle('open',ctrlsOpen);body.hidden=!ctrlsOpen;});
 
-    // Channels — the one place connections are managed after first entry
-    root.appendChild(head('Channels'));
-    var setupMsg=document.createElement('p');setupMsg.id='setupMsg';setupMsg.style.cssText='color:var(--mut);font-size:13px;margin:-2px 0 10px';root.appendChild(setupMsg);
-    SUPPORTED.forEach(function(p){
-      var c=connected[p],label=plabel(p);
-      if(c){
-        var cr=row('<div><b>'+label+'</b><p>Connected'+(c.handle?' · '+c.handle:'')+'</p></div>');
-        var db=document.createElement('button');db.className='connbtn';db.textContent='Disconnect';
-        db.addEventListener('click',function(){
-          if(db.dataset.confirm!=='1'){db.dataset.confirm='1';db.textContent='Tap to confirm';return;}
-          db.textContent='Disconnecting…';db.disabled=true;setupMsg.textContent='';
-          doDisconnect(function(err){if(err){db.disabled=false;db.textContent='Disconnect';setupMsg.textContent='Could not disconnect — please try again.';}else{renderSetup();}});
-        });
-        cr.appendChild(db);root.appendChild(cr);
-      }else{
-        var nr=row('<div><b>'+label+'</b><p>Not connected</p></div>');
-        var cb=document.createElement('button');cb.className='connbtn';cb.setAttribute('data-conn','');cb.setAttribute('data-platform',p);cb.textContent='Connect';
-        cb.addEventListener('click',function(){startConnect(cb);});
-        nr.appendChild(cb);root.appendChild(nr);
-      }
-    });
+    // ---- account defaults ----
+    body.appendChild(head('Account defaults'));
+    var br=row('<div><b>Pause everything</b><p>Pause or resume posting on all channels.</p></div>');
+    var pb=document.createElement('button');pb.className='connbtn';pb.textContent=u.paused?'Resume':'Pause';
+    var bn=document.createElement('span');bn.className='savednote';bn.textContent='Saved';br.appendChild(pb);br.appendChild(bn);
+    pb.addEventListener('click',function(){var next=!u.paused;saveSetting({paused:next},bn).then(function(){u.paused=next;pb.textContent=next?'Resume':'Pause';renderFreePill();});});
+    body.appendChild(br);
 
-    var pr=row('<div><b>Daily pace</b><p>Clips cut per day</p></div>');
+    var pr=row('<div><b>Base daily pace</b><p>Default clips/day. Channels inherit this.</p></div>');
     var sel=document.createElement('select');
     PACES.forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n+' per day';if(n===u.dailyPace)o.selected=true;sel.appendChild(o);});
-    var pn=document.createElement('span');pn.className='savednote';pn.textContent='Saved';
-    pr.appendChild(sel);pr.appendChild(pn);
-    sel.addEventListener('change',function(){saveSetting({dailyPace:+sel.value},pn).then(function(){u.dailyPace=+sel.value;renderFreePill();});});
-    root.appendChild(pr);
+    var pn=document.createElement('span');pn.className='savednote';pn.textContent='Saved';pr.appendChild(sel);pr.appendChild(pn);
+    sel.addEventListener('change',function(){saveSetting({dailyPace:+sel.value},pn).then(function(){u.dailyPace=+sel.value;renderClipsControls();});});
+    body.appendChild(pr);
 
-    var br=row('<div><b>Posting</b><p>Pause or resume everything</p></div>');
-    var pb=document.createElement('button');pb.className='connbtn';pb.textContent=u.paused?'Resume':'Pause';
-    var bn=document.createElement('span');bn.className='savednote';bn.textContent='Saved';
-    br.appendChild(pb);br.appendChild(bn);
-    pb.addEventListener('click',function(){var next=!u.paused;saveSetting({paused:next},bn).then(function(){u.paused=next;pb.textContent=next?'Resume':'Pause';renderFreePill();});});
-    root.appendChild(br);
-
-    var rr=row('<div style="width:100%"><b>Standing rules</b><p>Applied to every clip. One per line.</p></div>');rr.className='setrow col';
+    var rr=document.createElement('div');rr.className='setrow col';rr.innerHTML='<div style="width:100%"><b>Account rules</b><p>Fallback rules every channel inherits. One per line.</p></div>';
     var ta=document.createElement('textarea');ta.value=u.rules||'';ta.placeholder='e.g. Never use profanity in titles';
-    var rn=document.createElement('span');rn.className='savednote';rn.textContent='Saved';
-    rr.querySelector('b').appendChild(rn);rr.appendChild(ta);
+    var rn=document.createElement('span');rn.className='savednote';rn.textContent='Saved';rr.querySelector('b').appendChild(rn);rr.appendChild(ta);
     ta.addEventListener('blur',function(){if(ta.value===(u.rules||''))return;saveSetting({rules:ta.value},rn).then(function(){u.rules=ta.value;});});
-    root.appendChild(rr);
+    body.appendChild(rr);
 
-    root.appendChild(head('Channel formats'));
-    var platforms=Object.keys(connected||{}).filter(function(p){return connected[p];});
-    if(!platforms.length){
-      var none=document.createElement('div');none.className='setrow';none.innerHTML='<div><b>No channels yet</b><p>Connect a channel in Chat to set its format.</p></div>';
-      root.appendChild(none);
-    }else{
-      platforms.forEach(function(p){
-        var cs=csFor(p),label=plabel(p);
-        var cr=row('<div><b>'+label+' — Shorts length</b><p>Applies to '+label+' only</p></div>');
-        var s=document.createElement('select');
-        LENGTHS.forEach(function(L){var o=document.createElement('option');o.value=L[0];o.textContent=L[1];if(L[0]===cs.shortsLength)o.selected=true;s.appendChild(o);});
-        var cn=document.createElement('span');cn.className='savednote';cn.textContent='Saved';
-        cr.appendChild(s);cr.appendChild(cn);
-        s.addEventListener('change',function(){saveSetting({platform:p,shortsLength:s.value,mediumForm:cs.mediumForm},cn).then(function(){cs.shortsLength=s.value;});});
-        root.appendChild(cr);
-        if(multi){
-          var mr=row('<div><b>'+label+' — Medium-form cuts</b><p>~10-min cuts (Multi plan and up)</p></div>');
-          var mb=document.createElement('button');mb.className='toggle'+(cs.mediumForm?' on':'');mb.textContent=cs.mediumForm?'On':'Off';
-          var mn=document.createElement('span');mn.className='savednote';mn.textContent='Saved';
-          mr.appendChild(mb);mr.appendChild(mn);
-          mb.addEventListener('click',function(){var next=!cs.mediumForm;saveSetting({platform:p,shortsLength:cs.shortsLength,mediumForm:next},mn).then(function(){cs.mediumForm=next;mb.classList.toggle('on',next);mb.textContent=next?'On':'Off';});});
-          root.appendChild(mr);
-        }
+    // ---- per channel ----
+    platforms.forEach(function(p){
+      var cs=csFor(p),label=plabel(p),h=(connected[p]&&connected[p].handle)||cs.handle||label;
+      body.appendChild(chead(h,label));
+
+      var cpr=row('<div><b>Posting</b><p>Pause just this channel.</p></div>');
+      var cps=document.createElement('select');
+      var curState=cs.paused==null?'follow':(cs.paused?'paused':'active');
+      [['follow','Follow account'],['paused','Paused'],['active','Active']].forEach(function(O){var o=document.createElement('option');o.value=O[0];o.textContent=O[1];if(O[0]===curState)o.selected=true;cps.appendChild(o);});
+      var cpn=document.createElement('span');cpn.className='savednote';cpn.textContent='Saved';cpr.appendChild(cps);cpr.appendChild(cpn);
+      cps.addEventListener('change',function(){var val=cps.value==='follow'?null:(cps.value==='paused');saveSetting({platform:p,channelPaused:val},cpn).then(function(){cs.paused=val;});});
+      body.appendChild(cpr);
+
+      var cpcr=row('<div><b>Daily pace</b><p>Overrides the account pace for this channel.</p></div>');
+      var cpc=document.createElement('select');
+      var fo=document.createElement('option');fo.value='';fo.textContent='Follow account ('+u.dailyPace+')';if(cs.dailyPace==null)fo.selected=true;cpc.appendChild(fo);
+      PACES.forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n+' per day';if(n===cs.dailyPace)o.selected=true;cpc.appendChild(o);});
+      var cpcn=document.createElement('span');cpcn.className='savednote';cpcn.textContent='Saved';cpcr.appendChild(cpc);cpcr.appendChild(cpcn);
+      cpc.addEventListener('change',function(){var v=cpc.value===''?null:+cpc.value;saveSetting({platform:p,channelPace:v},cpcn).then(function(){cs.dailyPace=v;});});
+      body.appendChild(cpcr);
+
+      var slr=row('<div><b>Shorts length</b><p>Clip length for this channel.</p></div>');
+      var sls=document.createElement('select');
+      LENGTHS.forEach(function(L){var o=document.createElement('option');o.value=L[0];o.textContent=L[1];if(L[0]===cs.shortsLength)o.selected=true;sls.appendChild(o);});
+      var sln=document.createElement('span');sln.className='savednote';sln.textContent='Saved';slr.appendChild(sls);slr.appendChild(sln);
+      sls.addEventListener('change',function(){saveSetting({platform:p,shortsLength:sls.value},sln).then(function(){cs.shortsLength=sls.value;});});
+      body.appendChild(slr);
+
+      if(multi){
+        var mr=row('<div><b>Medium-form cuts</b><p>~10-min cuts (Multi plan and up).</p></div>');
+        var mb=document.createElement('button');mb.className='toggle'+(cs.mediumForm?' on':'');mb.textContent=cs.mediumForm?'On':'Off';
+        var mn=document.createElement('span');mn.className='savednote';mn.textContent='Saved';mr.appendChild(mb);mr.appendChild(mn);
+        mb.addEventListener('click',function(){var next=!cs.mediumForm;saveSetting({platform:p,mediumForm:next},mn).then(function(){cs.mediumForm=next;mb.classList.toggle('on',next);mb.textContent=next?'On':'Off';});});
+        body.appendChild(mr);
+      }
+
+      var crr=document.createElement('div');crr.className='setrow col';crr.innerHTML='<div style="width:100%"><b>Channel rules</b><p>Extra rules for this channel. Empty follows the account rules.</p></div>';
+      var cta=document.createElement('textarea');cta.value=cs.rules||'';cta.placeholder='e.g. Hook within the first 2 seconds';
+      var crn=document.createElement('span');crn.className='savednote';crn.textContent='Saved';crr.querySelector('b').appendChild(crn);crr.appendChild(cta);
+      cta.addEventListener('blur',function(){if(cta.value===(cs.rules||''))return;saveSetting({platform:p,channelRules:cta.value},crn).then(function(){cs.rules=cta.value;});});
+      body.appendChild(crr);
+
+      var dr=row('<div><b>Disconnect</b><p>Unlink '+h+'. Your clips stay.</p></div>');
+      var db=document.createElement('button');db.className='connbtn';db.textContent='Disconnect';dr.appendChild(db);
+      db.addEventListener('click',function(){
+        if(db.dataset.confirm!=='1'){db.dataset.confirm='1';db.textContent='Tap to confirm';return;}
+        db.textContent='Disconnecting…';db.disabled=true;var m=$('#clipsMsg');if(m)m.hidden=true;
+        doDisconnect(function(e2){if(e2){db.disabled=false;db.dataset.confirm='';db.textContent='Disconnect';if(m){m.hidden=false;m.textContent='Could not disconnect — please try again.';}}else{renderClips();}});
+      });
+      body.appendChild(dr);
+    });
+
+    // ---- connect a channel ----
+    var unconnected=SUPPORTED.filter(function(p){return !connected[p];});
+    if(unconnected.length){
+      body.appendChild(head('Connect a channel'));
+      unconnected.forEach(function(p){
+        var nr2=row('<div><b>'+plabel(p)+'</b><p>Not connected</p></div>');
+        var cb=document.createElement('button');cb.className='connbtn';cb.setAttribute('data-platform',p);cb.textContent='Connect';
+        cb.addEventListener('click',function(){startConnect(cb);});
+        nr2.appendChild(cb);body.appendChild(nr2);
       });
     }
   }

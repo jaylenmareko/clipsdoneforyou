@@ -33,7 +33,7 @@ module.exports = async (req, res) => {
     }
 
     const [cs, msgs, counts] = await Promise.all([
-      q('SELECT platform, handle, shorts_length AS "shortsLength", medium_form AS "mediumForm", rules FROM channel_settings WHERE user_id = $1', [u.id]),
+      q('SELECT platform, handle, shorts_length AS "shortsLength", medium_form AS "mediumForm", rules, paused, daily_pace AS "dailyPace" FROM channel_settings WHERE user_id = $1', [u.id]),
       q('SELECT role, text, conversation FROM messages WHERE user_id = $1 ORDER BY id ASC LIMIT 400', [u.id]),
       q(`SELECT
            count(*) FILTER (WHERE status = 'posted') AS posted,
