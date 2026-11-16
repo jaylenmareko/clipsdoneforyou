@@ -76,6 +76,10 @@ function ensureSchema() {
         created_at   timestamptz NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS clips_user_idx ON clips(user_id);
+      ALTER TABLE jobs  ADD COLUMN IF NOT EXISTS priority int NOT NULL DEFAULT 0;
+      ALTER TABLE clips ADD COLUMN IF NOT EXISTS url text;
+      ALTER TABLE clips ADD COLUMN IF NOT EXISTS posted_at timestamptz;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS journey jsonb NOT NULL DEFAULT '{}'::jsonb;
     `);
   })().catch((e) => { schemaReady = null; throw e; });
   return schemaReady;

@@ -50,6 +50,14 @@ async function handle(user, text) {
 
   // 1. clip request — any URL → queue a job (engine consumes it).
   const url = (text.match(/https?:\/\/\S+/) || [])[0];
+  // a link provided while we're waiting for a source kicks off the priority first batch
+  if (url && user.journey && user.journey.awaitingLinks) {
+    await q("INSERT INTO jobs(user_id, type, payload, priority) VALUES ($1,'first_batch',$2,100)",
+      [user.id, JSON.stringify({ source: 'link', url, count: 3 })]);
+    const j = Object.assign({}, user.journey); j.awaitingLinks = false;
+    await q('UPDATE users SET journey=$1 WHERE id=$2', [JSON.stringify(j), user.id]);
+    return { reply: "Got it — cutting your first clips from that video now. Your first ones post today. Paste more links anytime.", changed };
+  }
   if (url && /\bclip\b/.test(t)) {
     await q('INSERT INTO jobs(user_id, type, payload) VALUES ($1,$2,$3)',
       [user.id, 'clip_request', JSON.stringify({ url })]);
