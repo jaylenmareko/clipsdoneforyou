@@ -637,6 +637,21 @@
     renderChatHistory();renderFreePill();
     showTab(tab||'chat');
     window.scrollTo(0,0);
+    syncJourney();
+  }
+  // run the post-wizard journey: starts the first batch on connect, pulls any
+  // new agent messages (first clips live, paywall, etc.) from the real DB.
+  function syncJourney(){
+    api('/api/sync','POST',{}).then(function(res){
+      if(res.status!==200||!res.data||!S)return;
+      if(res.data.messages){S.messages=res.data.messages;renderChatHistory();}
+      if(S.user){
+        if(res.data.postedClips!=null)S.user.postedClips=res.data.postedClips;
+        if(res.data.bankedClips!=null)S.user.bankedClips=res.data.bankedClips;
+        if(res.data.freeClipsLeft!=null)S.user.freeClipsLeft=res.data.freeClipsLeft;
+        renderBilling();
+      }
+    }).catch(function(){});
   }
   // resolve real connection status BEFORE revealing, then gate if still zero
   function enterAppFlow(tab){
@@ -855,9 +870,12 @@
     if(!S||!S.user)return;
     var plan=S.user.plan,state=$('#billState');
     var left=(S.user.freeClipsLeft!=null?S.user.freeClipsLeft:10);
-    if(state)state.textContent=(plan==='free')
-      ?'Free — '+left+' of 10 free clips left. Posting pauses at 10 until you subscribe; clips stay banked.'
-      :'You are on the '+plan+' plan.';
+    var banked=(S.user.bankedClips!=null?S.user.bankedClips:0);
+    if(state){
+      if(plan!=='free')state.textContent='You are on the '+plan+' plan.';
+      else if(left<=0)state.textContent='Free limit reached — 10 clips posted. '+(banked>0?banked+' more are made and waiting; subscribe to post them today.':'New clips keep banking; subscribe to post them.')+' Nothing is deleted.';
+      else state.textContent='Free — '+left+' of 10 free clips left.'+(banked>0?' '+banked+' banked and waiting.':'')+' Posting pauses at 10 until you subscribe; clips stay banked.';
+    }
     $$('.curtag',app).forEach(function(t){t.remove();});
     $$('[data-plan]',app).forEach(function(b){
       if(b.dataset.plan===plan){var tag=document.createElement('span');tag.className='curtag';tag.textContent='Current plan';b.closest('.billplan').querySelector('b').appendChild(tag);}
