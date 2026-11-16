@@ -701,8 +701,8 @@
       var d=res.data||{};
       if(d.authorize_url){window.location.href=d.authorize_url;return;}
       b.textContent='Connect';if(inGate)ssDel('cdfy_gate_active');
-      var m=d.error==='profile_limit'?'The posting plan account limit is reached — an upgrade is needed before new accounts can connect.'
-           :d.error==='not_configured'?'Connecting is not switched on yet — the server key is missing.'
+      var m=d.error==='profile_limit'?'We’re at capacity for new channel connections right now — nothing on your end. We’re adding more; you can keep exploring and try again shortly.'
+           :d.error==='not_configured'?'Connecting isn’t switched on yet — try again in a bit.'
            :'Could not start connecting — please try again.';
       if(msg)msg.textContent=m;
     }).catch(function(){b.textContent='Connect';if(inGate)ssDel('cdfy_gate_active');if(msg)msg.textContent='Could not start connecting — please try again.';});
