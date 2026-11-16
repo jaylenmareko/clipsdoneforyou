@@ -257,6 +257,9 @@
   .savednote{font-size:12.5px;color:var(--ok);font-weight:700;margin-left:10px;opacity:0;transition:opacity .2s var(--ease)}
   .savednote.show{opacity:1}
   .btn[disabled]{opacity:.45;cursor:not-allowed;pointer-events:none;box-shadow:none}
+  .disconnect-link{display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:var(--mut-2);text-decoration:none;cursor:pointer;transition:color .2s var(--ease)}
+  .disconnect-link:hover{color:var(--coral-dk)}
+  .disconnect-link.confirm{color:var(--coral-dk)}
 
   /* ---------- responsive ---------- */
   @media(max-width:860px){
@@ -426,6 +429,7 @@
         <div class="connrow"><span class="pl">TikTok</span><button class="connbtn" data-conn data-platform="tiktok">Connect</button></div>
         <div class="connrow"><span class="pl">Instagram</span><button class="connbtn" data-conn data-platform="instagram">Connect</button></div>
         <p id="connMsg" style="margin-top:10px"></p>
+        <a href="#" id="disconnectAll" class="disconnect-link" hidden>Disconnect all accounts</a>
       </div>
     </div>
   </div>
@@ -685,6 +689,7 @@
     var cc=$('#connCount');if(cc)cc.textContent=label;
     var gc=$('#gateCount');if(gc)gc.textContent=label;
     var sc=$('#startClipping');if(sc)sc.disabled=(n===0);
+    var dl=$('#disconnectAll');if(dl){dl.hidden=(n===0);if(n===0){dl.classList.remove('confirm');dl.textContent='Disconnect all accounts';}}
   }
   function refreshStatus(){
     if(!userId())return Promise.resolve(0);
@@ -716,6 +721,24 @@
   if(gateLater)gateLater.addEventListener('click',function(e){e.preventDefault();gateSkip=true;closeGate();});
   var startClipping=$('#startClipping');
   if(startClipping)startClipping.addEventListener('click',function(){if(startClipping.disabled)return;ssDel('cdfy_gate_active');closeGate();});
+
+  // ---- disconnect all (deletes the account's provider profile; two-tap confirm) ----
+  var disconnectAll=$('#disconnectAll');
+  if(disconnectAll)disconnectAll.addEventListener('click',function(e){
+    e.preventDefault();
+    if(!disconnectAll.classList.contains('confirm')){
+      disconnectAll.classList.add('confirm');
+      disconnectAll.textContent='This removes every connected channel — tap again to confirm';
+      return;
+    }
+    disconnectAll.classList.remove('confirm');
+    disconnectAll.textContent='Disconnecting…';
+    if(connMsg)connMsg.textContent='';
+    api('/api/disconnect','POST',{}).then(function(res){
+      if(res.status===200){refreshStatus();if(connMsg)connMsg.textContent='Your channels were disconnected. You can connect again anytime.';}
+      else{disconnectAll.textContent='Disconnect all accounts';if(connMsg)connMsg.textContent='Could not disconnect — please try again.';}
+    }).catch(function(){disconnectAll.textContent='Disconnect all accounts';if(connMsg)connMsg.textContent='Could not disconnect — please try again.';});
+  });
 
   // ---- chat ----
   var chatLog=$('#chatLog'),chatInput=$('#chatInput');

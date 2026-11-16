@@ -85,9 +85,14 @@ async function getStatus(username) {
   return { connected };
 }
 
-// Disconnect a platform from a profile — no documented Upload-Post endpoint yet.
-async function disconnect(/* username, platform */) {
-  return { error: 'not_supported' };
+// Remove a user's connections. Upload-Post only supports deleting the WHOLE
+// profile (DELETE /api/uploadposts/users {username}) — there is no per-platform
+// disconnect — so this removes every connected channel for the account and
+// frees the profile slot. 404 (already gone) counts as success.
+async function disconnect(username) {
+  const r = await up('DELETE', '/api/uploadposts/users', { body: { username } });
+  if (r.status === 200 || r.status === 204 || r.status === 404) return { ok: true };
+  return { error: 'upstream', status: r.status };
 }
 
 module.exports = { configured, PLATFORMS, startConnect, getStatus, disconnect };
