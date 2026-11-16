@@ -639,19 +639,11 @@
     window.scrollTo(0,0);
     syncJourney();
   }
-  // run the post-wizard journey: starts the first batch on connect, pulls any
-  // new agent messages (first clips live, paywall, etc.) from the real DB.
+  // run the post-wizard journey: /api/me starts the first batch on connect and
+  // materializes any new agent messages (first clips live, paywall, etc.) from
+  // the real DB; re-pull state and re-render the thread + Billing.
   function syncJourney(){
-    api('/api/sync','POST',{}).then(function(res){
-      if(res.status!==200||!res.data||!S)return;
-      if(res.data.messages){S.messages=res.data.messages;renderChatHistory();}
-      if(S.user){
-        if(res.data.postedClips!=null)S.user.postedClips=res.data.postedClips;
-        if(res.data.bankedClips!=null)S.user.bankedClips=res.data.bankedClips;
-        if(res.data.freeClipsLeft!=null)S.user.freeClipsLeft=res.data.freeClipsLeft;
-        renderBilling();
-      }
-    }).catch(function(){});
+    refreshState().then(function(){renderChatHistory();renderBilling();}).catch(function(){});
   }
   // resolve real connection status BEFORE revealing, then gate if still zero
   function enterAppFlow(tab){

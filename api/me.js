@@ -3,12 +3,27 @@
 // only this user's data. { authenticated:false } when there is no valid session.
 const { q, configured } = require('./_db');
 const { getUser } = require('./_auth');
+const provider = require('./_provider');
+const journey = require('./_journey');
 
 module.exports = async (req, res) => {
   if (!configured()) { res.status(200).json({ authenticated: false, configured: false }); return; }
   try {
     const u = await getUser(req);
     if (!u) { res.status(200).json({ authenticated: false, configured: true }); return; }
+
+    // Run the post-wizard journey (idempotent): start the first batch once a
+    // channel is connected, then materialize any milestone messages the real
+    // DB state now warrants. Done here because /api/me is the app's entry read.
+    if (provider.configured()) {
+      try {
+        if (!(u.journey && u.journey.started)) {
+          const st = await provider.getStatus(u.id).catch(() => ({ error: 'upstream' }));
+          if (st.connected) { await journey.start(u, st.connected); }
+        }
+        await journey.reconcile(u);
+      } catch (e) { /* journey is best-effort; never block app state */ }
+    }
 
     const [cs, msgs, counts] = await Promise.all([
       q('SELECT platform, shorts_length AS "shortsLength", medium_form AS "mediumForm" FROM channel_settings WHERE user_id = $1', [u.id]),
