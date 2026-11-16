@@ -77,9 +77,21 @@ function ensureSchema() {
       );
       CREATE INDEX IF NOT EXISTS clips_user_idx ON clips(user_id);
       ALTER TABLE jobs  ADD COLUMN IF NOT EXISTS priority int NOT NULL DEFAULT 0;
+      ALTER TABLE jobs  ADD COLUMN IF NOT EXISTS channel text;
       ALTER TABLE clips ADD COLUMN IF NOT EXISTS url text;
       ALTER TABLE clips ADD COLUMN IF NOT EXISTS posted_at timestamptz;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS journey jsonb NOT NULL DEFAULT '{}'::jsonb;
+      -- per-channel conversations: every message belongs to one conversation
+      -- ('all' = All channels, or 'platform:handle' = a channel). Existing rows
+      -- migrate to 'all' via the default.
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS conversation text NOT NULL DEFAULT 'all';
+      CREATE INDEX IF NOT EXISTS messages_conv_idx ON messages(user_id, conversation, id);
+      -- per-channel settings + the connected handle (so conversations/routing
+      -- survive a disconnect). NULL pace/paused fall back to the account.
+      ALTER TABLE channel_settings ADD COLUMN IF NOT EXISTS rules text NOT NULL DEFAULT '';
+      ALTER TABLE channel_settings ADD COLUMN IF NOT EXISTS daily_pace int;
+      ALTER TABLE channel_settings ADD COLUMN IF NOT EXISTS paused boolean;
+      ALTER TABLE channel_settings ADD COLUMN IF NOT EXISTS handle text;
     `);
   })().catch((e) => { schemaReady = null; throw e; });
   return schemaReady;

@@ -1,14 +1,18 @@
 // ---------------------------------------------------------------------------
-// Post-wizard journey state machine.
+// Post-wizard journey state machine, per-channel aware.
 //
-// The clipping/posting ENGINE runs outside this site. It consumes the `jobs`
-// queue and writes real rows into `clips` (status 'posted' with a live `url`
-// and `posted_at`, or 'banked' while the free limit holds). This module never
-// fabricates a clip, post, or link — it only reads what the engine produced and
-// materializes the agent's chat messages at the right moments, each once.
+// The external engine consumes `jobs` and writes real `clips` rows (status
+// 'posted' with url+posted_at+platform, or 'banked'). This module never
+// fabricates a clip/post/link — it reads what the engine produced and
+// materializes the agent's chat messages, routed to the right conversation:
+//   - A clip going live / the first-batch note  -> that channel's conversation
+//     (key 'platform:handle'), with the real url.
+//   - Account-level events (7-free heads-up, 10-free paywall, banking, plan
+//     changes, weekly summary, the one-time "change anything by chatting" note)
+//     -> the 'all' (All channels) conversation.
 //
-// `users.journey` (jsonb) tracks which milestones have fired so every message
-// is emitted exactly once, idempotently, on each app sync.
+// `users.journey` (jsonb) tracks per-channel and account milestones so each
+// message is emitted exactly once, idempotently, on each app sync.
 // ---------------------------------------------------------------------------
 const { q } = require('./_db');
 
@@ -20,105 +24,117 @@ function isoWeek(d) {
   const week = 1 + Math.round(((dt - firstThu) / 864e5 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
   return dt.getUTCFullYear() + '-W' + String(week).padStart(2, '0');
 }
-function links(clips) { return clips.map((c) => '• ' + c.url).join('\n'); }
-async function agent(userId, text) {
-  await q('INSERT INTO messages(user_id, role, text) VALUES ($1,$2,$3)', [userId, 'agent', text]);
+function chanKey(platform, handle) { return platform + ':' + (handle || platform); }
+function links(a) { return a.map((c) => '• ' + c.url).join('\n'); }
+async function agent(userId, conversation, text) {
+  await q('INSERT INTO messages(user_id, role, text, conversation) VALUES ($1,$2,$3,$4)', [userId, 'agent', text, conversation]);
 }
 
-// Kick off the first batch the moment the wizard/gate completes. Idempotent.
-// `connected` is the live /api/status connected map (so we pick a real source).
+// Kick off the first batch per connected channel the moment the wizard/gate
+// completes. Idempotent per channel. `connected` = live /api/status map.
 async function start(user, connected) {
-  const j = Object.assign({}, user.journey || {});
-  if (j.started) { return j; }
-  const hasYouTube = !!(connected && connected.youtube);
+  const j = Object.assign({ started: {} }, user.journey || {});
+  j.started = j.started || {};
+  const platforms = Object.keys(connected || {}).filter((p) => connected[p]);
+  let changed = false;
 
-  if (hasYouTube) {
-    await q("INSERT INTO jobs(user_id, type, payload, priority) VALUES ($1,'first_batch',$2,100)",
-      [user.id, JSON.stringify({ source: 'youtube_channel', strategy: 'most_watched_long', count: 3 })]);
-    await agent(user.id, "On it — I'm pulling from your most-watched long videos and cutting your first clips. Your first ones post today.");
-    j.started = true; j.awaitingLinks = false;
+  if (!platforms.length) {
+    if (!j.started._none && !j.awaitingLinks) {
+      await agent(user.id, 'all', "I'm ready to start — I just need a video. Paste a link to one of your long videos here and I'll cut the best moments and post them today.");
+      j.awaitingLinks = true; j.started._none = true; changed = true;
+    }
   } else {
-    await agent(user.id, "I'm ready to start — I just need a video. Paste a link to one of your long videos here and I'll cut the best moments and post them today.");
-    j.started = true; j.awaitingLinks = true;
+    for (const p of platforms) {
+      if (j.started[p]) continue;
+      const handle = connected[p].handle;
+      const key = chanKey(p, handle);
+      await q("INSERT INTO jobs(user_id, type, payload, priority, channel) VALUES ($1,'first_batch',$2,100,$3)",
+        [user.id, JSON.stringify({ source: 'youtube_channel', strategy: 'most_watched_long', count: 3, platform: p, handle }), key]);
+      j.started[p] = true; j.awaitingLinks = false; changed = true;
+    }
+    // the "I'm starting" message is account-level (All channels), once; the
+    // per-channel "first clips are live" announcements come from reconcile().
+    if (!j.startMsgSent) {
+      await agent(user.id, 'all', "On it — I'm pulling from your most-watched long videos and cutting your first clips. Your first ones post today.");
+      j.startMsgSent = true; changed = true;
+    }
   }
-  await q('UPDATE users SET journey=$1 WHERE id=$2', [JSON.stringify(j), user.id]);
-  user.journey = j;
+  if (changed) { await q('UPDATE users SET journey=$1 WHERE id=$2', [JSON.stringify(j), user.id]); user.journey = j; }
   return j;
 }
 
-// Emit any milestone messages the real state now warrants. Each fires once.
+// Emit milestone messages the real state warrants, each once, correctly routed.
 async function reconcile(user) {
-  const j = Object.assign({}, user.journey || {});
-  const r = await q(
-    "SELECT status, url, posted_at FROM clips WHERE user_id=$1 ORDER BY posted_at ASC NULLS LAST, id ASC", [user.id]);
-  const posted = r.rows.filter((c) => c.status === 'posted');
-  const banked = r.rows.filter((c) => c.status === 'banked');
+  const j = Object.assign({ started: {}, firstPosts: {}, lastDaily: {} }, user.journey || {});
+  j.started = j.started || {}; j.firstPosts = j.firstPosts || {}; j.lastDaily = j.lastDaily || {};
+  const before = JSON.stringify(j);
+
+  const clipsR = await q("SELECT status, url, platform, posted_at FROM clips WHERE user_id=$1 ORDER BY posted_at ASC NULLS LAST, id ASC", [user.id]);
+  const csR = await q('SELECT platform, handle FROM channel_settings WHERE user_id=$1', [user.id]);
+  const handleMap = {}; csR.rows.forEach((r) => { handleMap[r.platform] = r.handle; });
+
+  const posted = clipsR.rows.filter((c) => c.status === 'posted');
+  const banked = clipsR.rows.filter((c) => c.status === 'banked');
   const postedCount = posted.length, bankedCount = banked.length;
   const plan = user.plan;
-  const before = JSON.stringify(j);
-  let subJustConfirmed = false;
+  const byPlatform = {};
+  posted.forEach((c) => { const p = c.platform || 'youtube'; (byPlatform[p] = byPlatform[p] || []).push(c); });
 
-  // 1. first posts live + the one-time "change anything by chatting" note
-  if (j.started && !j.firstPostsAnnounced && postedCount >= 1) {
-    const firstDate = posted[0].posted_at ? isoDate(posted[0].posted_at) : null;
-    const firstBatch = firstDate ? posted.filter((c) => c.posted_at && isoDate(c.posted_at) === firstDate) : posted.slice(0, 3);
-    await agent(user.id, 'Your first clips are live:\n' + links(firstBatch));
-    j.firstPostsAnnounced = true; if (firstDate) j.lastDailyDate = firstDate;
-    if (!j.changeNoteSent) {
-      await agent(user.id, "Want them longer, shorter, more per day, or different topics? Just tell me here and I'll adjust.");
-      j.changeNoteSent = true;
+  let anyFirst = false;
+  for (const p of Object.keys(byPlatform)) {
+    const cs = byPlatform[p];
+    const key = chanKey(p, handleMap[p]);
+    // first clips live for this channel
+    if (!j.firstPosts[p] && cs.length >= 1) {
+      const firstDate = cs[0].posted_at ? isoDate(cs[0].posted_at) : null;
+      const firstBatch = firstDate ? cs.filter((c) => c.posted_at && isoDate(c.posted_at) === firstDate) : cs.slice(0, 3);
+      await agent(user.id, key, 'Your first clips are live:\n' + links(firstBatch));
+      j.firstPosts[p] = true; if (firstDate) j.lastDaily[p] = firstDate; anyFirst = true;
+    } else if (j.firstPosts[p]) {
+      // daily "N posted today" for this channel
+      const dates = cs.filter((c) => c.posted_at).map((c) => isoDate(c.posted_at));
+      const latest = dates.length ? dates[dates.length - 1] : null;
+      if (latest && latest !== j.lastDaily[p]) {
+        const dayClips = cs.filter((c) => c.posted_at && isoDate(c.posted_at) === latest);
+        await agent(user.id, key, dayClips.length + ' posted today:\n' + links(dayClips));
+        j.lastDaily[p] = latest;
+      }
     }
   }
 
-  // 2. subscribe confirmation — the bank just released; announce it, suppress today's daily
+  // one-time "change anything by chatting" note -> All channels
+  if (anyFirst && !j.changeNoteSent) {
+    await agent(user.id, 'all', "Want them longer, shorter, more per day, or different topics? Just tell me here (or in a channel to scope it) and I'll adjust.");
+    j.changeNoteSent = true;
+  }
+
+  // ---- account-level events -> 'all' ----
   if (plan !== 'free' && j.subConfirmedPlan !== plan) {
-    const today = isoDate(Date.now());
-    const todayClips = posted.filter((c) => c.posted_at && isoDate(c.posted_at) === today);
-    await agent(user.id, "You're on " + plan + ' — your banked clips are posting now'
-      + (todayClips.length ? ':\n' + links(todayClips) : '.') + '\nBack to daily from here.');
-    j.subConfirmedPlan = plan; j.lastDailyDate = today; subJustConfirmed = true;
+    await agent(user.id, 'all', "You're on " + plan + ' — your banked clips are posting now, and each one shows up in its channel. Back to daily from here.');
+    j.subConfirmedPlan = plan;
   }
-
-  // 3. daily "N posted today" with real links
-  if (j.firstPostsAnnounced && !subJustConfirmed && postedCount > 0) {
-    const dates = posted.filter((c) => c.posted_at).map((c) => isoDate(c.posted_at));
-    const latest = dates.length ? dates[dates.length - 1] : null;
-    if (latest && latest !== j.lastDailyDate) {
-      const dayClips = posted.filter((c) => c.posted_at && isoDate(c.posted_at) === latest);
-      await agent(user.id, dayClips.length + ' posted today:\n' + links(dayClips));
-      j.lastDailyDate = latest;
-    }
-  }
-
-  // 4. soft heads-up at 7 free clips
   if (plan === 'free' && !j.heads7Sent && postedCount >= 7) {
-    await agent(user.id, Math.max(0, 10 - postedCount) + ' of your 10 free clips left.');
+    await agent(user.id, 'all', Math.max(0, 10 - postedCount) + ' of your 10 free clips left.');
     j.heads7Sent = true;
   }
-
-  // 5. paywall at 10 — posting pauses, clips keep banking
   if (plan === 'free' && !j.paywall10Sent && postedCount >= 10) {
-    await agent(user.id, "That's your 10 free clips used — posting pauses here, but I keep clipping."
+    await agent(user.id, 'all', "That's your 10 free clips used — posting pauses here, but I keep clipping."
       + (bankedCount ? ' ' + bankedCount + ' are made and waiting.' : '')
       + ' Subscribe and your banked clips post today. Nothing gets deleted.');
     j.paywall10Sent = true;
   }
-
-  // 6. weekly summary (post-subscription only)
-  if (plan !== 'free' && j.subConfirmedPlan && !subJustConfirmed && postedCount > 0) {
+  if (plan !== 'free' && j.subConfirmedPlan === plan && postedCount > 0) {
     const wk = isoWeek(Date.now());
-    if (j.lastWeeklyWeek !== wk) {
+    if (j._weeklyArmed && j.lastWeeklyWeek !== wk) {
       const weekClips = posted.filter((c) => c.posted_at && isoWeek(c.posted_at) === wk);
-      await agent(user.id, weekClips.length + ' clips posted this week — ' + postedCount + ' total.');
+      await agent(user.id, 'all', weekClips.length + ' clips posted this week — ' + postedCount + ' total.');
       j.lastWeeklyWeek = wk;
     }
+    j._weeklyArmed = true; // armed after the first post-sub reconcile; weekly never fires the same run as subscribe
   }
 
-  if (JSON.stringify(j) !== before) {
-    await q('UPDATE users SET journey=$1 WHERE id=$2', [JSON.stringify(j), user.id]);
-    user.journey = j;
-  }
+  if (JSON.stringify(j) !== before) { await q('UPDATE users SET journey=$1 WHERE id=$2', [JSON.stringify(j), user.id]); user.journey = j; }
   return { postedCount, bankedCount };
 }
 
-module.exports = { start, reconcile };
+module.exports = { start, reconcile, chanKey };

@@ -214,7 +214,26 @@
   .aview .sub2{color:var(--mut);font-size:14.5px;margin-bottom:20px}
   .freepill{display:inline-flex;align-items:center;gap:7px;background:var(--coral-soft);color:var(--coral-dk);font-weight:700;font-size:13px;padding:6px 12px;border-radius:var(--r-pill)}
   .freepill i{width:7px;height:7px;border-radius:50%;background:var(--coral);display:inline-block}
-  .chatcol{max-width:720px;margin:0 auto}
+  /* chat: per-channel conversation sidebar + thread */
+  .chatwrap{display:flex;gap:24px;align-items:flex-start}
+  .convbar{flex:none;width:210px;position:sticky;top:76px;display:flex;flex-direction:column;gap:2px}
+  .convbar .conv{display:block;text-align:left;border:none;background:transparent;font:inherit;font-size:14px;font-weight:600;color:var(--mut);padding:9px 12px;border-radius:10px;cursor:pointer;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s var(--ease),color .15s var(--ease)}
+  .convbar .conv:hover{background:var(--soft)}
+  .convbar .conv.on{background:#fff;color:var(--ink);box-shadow:var(--sh-sm)}
+  .convbar .conv.off{color:var(--mut-2)}
+  .convbar .conv.off::after{content:' · off';font-weight:500;font-size:12px}
+  .convbar .sep{height:1px;background:var(--line);margin:8px 6px}
+  .chatcol{flex:1;max-width:720px;margin:0 auto;min-width:0}
+  .convtoggle{display:none}
+  .convdisabled{color:var(--mut-2);font-size:13.5px;text-align:center;margin-top:16px}
+  @media(max-width:760px){
+    .chatwrap{flex-direction:column;gap:10px}
+    .convbar{position:static;width:100%;flex-direction:row;overflow-x:auto;gap:6px;display:none;padding-bottom:4px}
+    .convbar.open{display:flex}
+    .convbar .conv{width:auto;flex:none}
+    .convbar .sep{display:none}
+    .convtoggle{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-2);background:#fff;padding:8px 14px;border-radius:var(--r-pill);font:inherit;font-weight:650;font-size:13.5px;color:var(--ink-2);cursor:pointer}
+  }
   .msg{margin-bottom:14px;font-size:15px;line-height:1.55;color:var(--ink-2);white-space:pre-line;word-break:break-word}
   .msg.me{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:10px 14px;margin-left:auto;max-width:85%;width:fit-content}
   .connectcard{background:#fff;border:1px solid var(--line-2);border-radius:var(--r-lg);padding:20px;margin:18px 0;box-shadow:var(--sh-sm)}
@@ -414,11 +433,16 @@
   </div></div>
 
   <div class="aview" data-view="chat">
-    <div class="chatcol">
-      <div id="chatLog"></div>
-      <div class="composer">
-        <input id="chatInput" type="text" placeholder="Type a message…">
-        <button id="chatSend" aria-label="Send">↑</button>
+    <button class="convtoggle" id="convToggle" aria-label="Conversations">☰ Channels</button>
+    <div class="chatwrap">
+      <aside class="convbar" id="convBar"></aside>
+      <div class="chatcol">
+        <div id="chatLog"></div>
+        <div class="composer" id="composer">
+          <input id="chatInput" type="text" placeholder="Type a message…">
+          <button id="chatSend" aria-label="Send">↑</button>
+        </div>
+        <div class="convdisabled" id="convDisabled" hidden>This channel is disconnected.</div>
       </div>
     </div>
   </div>
@@ -643,7 +667,7 @@
   // materializes any new agent messages (first clips live, paywall, etc.) from
   // the real DB; re-pull state and re-render the thread + Billing.
   function syncJourney(){
-    refreshState().then(function(){renderChatHistory();renderBilling();}).catch(function(){});
+    refreshState().then(function(){if(S&&S.connected)connected=S.connected;renderChatHistory();renderBilling();}).catch(function(){});
   }
   // resolve real connection status BEFORE revealing, then gate if still zero
   function enterAppFlow(tab){
@@ -721,28 +745,65 @@
   var startClipping=$('#startClipping');
   if(startClipping)startClipping.addEventListener('click',function(){if(startClipping.disabled)return;ssDel('cdfy_gate_active');closeGate();});
 
-  // ---- chat ----
+  // ---- chat (per-channel conversations) ----
   var chatLog=$('#chatLog'),chatInput=$('#chatInput');
+  var activeConv='all';
   function addMsg(role,text){var d=document.createElement('div');d.className='msg'+(role==='me'?' me':'');d.textContent=text;chatLog.appendChild(d);}
-  function renderChatHistory(){chatLog.innerHTML='';if(S&&S.messages)S.messages.forEach(function(m){addMsg(m.role,m.text);});}
+  // conversation list: All channels, then connected channels (in order), then
+  // disconnected channels that still have history.
+  function buildConvs(){
+    var list=[{key:'all',label:'All channels',connected:true}];
+    var have={};
+    Object.keys(connected||{}).forEach(function(p){
+      var c=connected[p];if(!c)return;
+      var key=p+':'+(c.handle||p);have[key]=true;
+      list.push({key:key,label:c.handle||p,connected:true});
+    });
+    var seen={};
+    ((S&&S.messages)||[]).forEach(function(m){
+      var cv=m.conversation||'all';
+      if(cv==='all'||have[cv]||seen[cv])return;seen[cv]=true;
+      list.push({key:cv,label:cv.split(':').slice(1).join(':')||cv,connected:false});
+    });
+    return list;
+  }
+  function activeConvObj(){var l=buildConvs();for(var i=0;i<l.length;i++)if(l[i].key===activeConv)return l[i];return {key:'all',connected:true};}
+  function renderConvBar(){
+    var bar=$('#convBar');if(!bar)return;
+    var convs=buildConvs();
+    if(!convs.some(function(c){return c.key===activeConv;}))activeConv='all';
+    bar.innerHTML='';var sepDone=false;
+    convs.forEach(function(c){
+      if(!c.connected&&!sepDone){var s=document.createElement('div');s.className='sep';bar.appendChild(s);sepDone=true;}
+      var b=document.createElement('button');b.className='conv'+(c.key===activeConv?' on':'')+(c.connected?'':' off');b.textContent=c.label;
+      b.addEventListener('click',function(){setConv(c.key);var mb=$('#convBar');if(mb)mb.classList.remove('open');});
+      bar.appendChild(b);
+    });
+  }
+  function renderChatHistory(){
+    renderConvBar();
+    chatLog.innerHTML='';
+    if(S&&S.messages)S.messages.forEach(function(m){if((m.conversation||'all')===activeConv)addMsg(m.role,m.text);});
+    var disabled=(activeConvObj().connected===false);
+    var comp=$('#composer'),dis=$('#convDisabled');
+    if(comp)comp.style.display=disabled?'none':'';
+    if(dis)dis.hidden=!disabled;
+  }
+  function setConv(key){activeConv=key;renderChatHistory();window.scrollTo(0,0);}
   function applyChanged(ch){
     if(!ch||!S||!S.user)return;
     if(ch.paused!==undefined)S.user.paused=ch.paused;
     if(ch.dailyPace!==undefined)S.user.dailyPace=ch.dailyPace;
     if(ch.rules!==undefined)S.user.rules=ch.rules;
-    if(ch.channel){
-      if(!S.channelSettings)S.channelSettings=[];
-      var found=false;
-      S.channelSettings.forEach(function(c){if(c.platform===ch.channel.platform){c.shortsLength=ch.channel.shortsLength;found=true;}});
-      if(!found)S.channelSettings.push({platform:ch.channel.platform,shortsLength:ch.channel.shortsLength,mediumForm:false});
-    }
     renderFreePill();
   }
   function sendChat(){
     var t=chatInput.value.trim();if(!t||!userId())return;
+    if(activeConvObj().connected===false)return;
     addMsg('me',t);chatInput.value='';
-    api('/api/chat','POST',{text:t}).then(function(res){
-      if(res.status===200){addMsg('agent',res.data.reply);applyChanged(res.data.changed);}
+    if(S){S.messages=S.messages||[];S.messages.push({role:'me',text:t,conversation:activeConv});}
+    api('/api/chat','POST',{text:t,conversation:activeConv}).then(function(res){
+      if(res.status===200){addMsg('agent',res.data.reply);if(S)S.messages.push({role:'agent',text:res.data.reply,conversation:res.data.conversation||activeConv});applyChanged(res.data.changed);}
       else if(res.data&&res.data.error==='not_configured')addMsg('agent','Accounts aren’t switched on yet.');
       else addMsg('agent','Something went wrong — please try again.');
     }).catch(function(){addMsg('agent','Network error — please try again.');});
@@ -750,6 +811,8 @@
   var chatSendBtn=$('#chatSend');
   if(chatSendBtn)chatSendBtn.addEventListener('click',sendChat);
   if(chatInput)chatInput.addEventListener('keydown',function(e){if(e.key==='Enter')sendChat();});
+  var convToggle=$('#convToggle');
+  if(convToggle)convToggle.addEventListener('click',function(){var b=$('#convBar');if(b)b.classList.toggle('open');});
 
   // ---- clips ----
   function renderClips(){

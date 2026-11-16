@@ -12,22 +12,29 @@ module.exports = async (req, res) => {
     const u = await getUser(req);
     if (!u) { res.status(200).json({ authenticated: false, configured: true }); return; }
 
-    // Run the post-wizard journey (idempotent): start the first batch once a
-    // channel is connected, then materialize any milestone messages the real
-    // DB state now warrants. Done here because /api/me is the app's entry read.
+    // Resolve live connection state, persist each channel's handle (so
+    // conversations + routing survive a disconnect), then run the post-wizard
+    // journey (idempotent) — start the first batch per connected channel and
+    // materialize any milestone messages the real DB state now warrants.
+    let connected = {};
     if (provider.configured()) {
       try {
-        if (!(u.journey && u.journey.started)) {
-          const st = await provider.getStatus(u.id).catch(() => ({ error: 'upstream' }));
-          if (st.connected) { await journey.start(u, st.connected); }
+        const st = await provider.getStatus(u.id).catch(() => ({ error: 'upstream' }));
+        connected = st.connected || {};
+        for (const [p, c] of Object.entries(connected)) {
+          if (c && c.handle) {
+            await q(`INSERT INTO channel_settings(user_id, platform, handle) VALUES ($1,$2,$3)
+                     ON CONFLICT (user_id, platform) DO UPDATE SET handle = EXCLUDED.handle`, [u.id, p, c.handle]);
+          }
         }
+        if (Object.keys(connected).length) { await journey.start(u, connected); }
         await journey.reconcile(u);
       } catch (e) { /* journey is best-effort; never block app state */ }
     }
 
     const [cs, msgs, counts] = await Promise.all([
-      q('SELECT platform, shorts_length AS "shortsLength", medium_form AS "mediumForm" FROM channel_settings WHERE user_id = $1', [u.id]),
-      q('SELECT role, text FROM messages WHERE user_id = $1 ORDER BY id ASC LIMIT 200', [u.id]),
+      q('SELECT platform, handle, shorts_length AS "shortsLength", medium_form AS "mediumForm", rules FROM channel_settings WHERE user_id = $1', [u.id]),
+      q('SELECT role, text, conversation FROM messages WHERE user_id = $1 ORDER BY id ASC LIMIT 400', [u.id]),
       q(`SELECT
            count(*) FILTER (WHERE status = 'posted') AS posted,
            count(*) FILTER (WHERE status = 'banked') AS banked
@@ -54,6 +61,7 @@ module.exports = async (req, res) => {
       },
       channelSettings: cs.rows,
       messages: msgs.rows,
+      connected: connected,
     });
   } catch (e) {
     res.status(500).json({ error: 'server_error' });
