@@ -415,15 +415,10 @@
 
   <div class="aview" data-view="chat">
     <div class="chatcol">
-      <span class="freepill"><i></i><span id="freePill">10 free clips left</span></span>
-      <div style="height:16px"></div>
       <div id="chatLog"></div>
-      <div class="connectcard">
-        <b>First step: connect your channel</b>
-        <p>Clips post to your YouTube channel. <span id="connCount">Not connected yet</span>.</p>
-        <div class="connrow"><span class="pl">YouTube</span><button class="connbtn" data-conn data-platform="youtube">Connect</button></div>
-        <p id="connMsg" style="margin-top:10px"></p>
-        <a href="#" id="disconnectAll" class="disconnect-link" hidden>Disconnect channel</a>
+      <div class="composer">
+        <input id="chatInput" type="text" placeholder="Type a message…">
+        <button id="chatSend" aria-label="Send">↑</button>
       </div>
     </div>
   </div>
@@ -664,10 +659,12 @@
     else el.textContent=S.user.freeClipsLeft+' free clips left';
   }
 
-  // ---- connect flow (shared by the Chat card AND the first-entry gate) ----
-  var connMsg=$('#connMsg');
+  // ---- connect flow (first-entry gate + Setup) ----
   var gateMsg=$('#gateMsg');
   var gate=$('#gate');
+  var SUPPORTED=$$('#gate [data-conn]').map(function(b){return b.dataset.platform;}); // platforms we offer
+  var PLABEL={youtube:'YouTube',tiktok:'TikTok',instagram:'Instagram',facebook:'Facebook',linkedin:'LinkedIn',x:'X'};
+  function plabel(p){return PLABEL[p]||(p.charAt(0).toUpperCase()+p.slice(1));}
   function connectedCount(){var n=0;for(var k in connected){if(connected[k])n++;}return n;}
   function applyConnected(){
     $$('[data-conn]').forEach(function(b){
@@ -675,11 +672,9 @@
       if(c){b.classList.add('done');b.textContent='Connected'+(c.handle?' · '+c.handle:'');}
       else{b.classList.remove('done');b.textContent='Connect';}
     });
-    var n=connectedCount(),label=(n===0?'Not connected yet':'Connected');
-    var cc=$('#connCount');if(cc)cc.textContent=label;
-    var gc=$('#gateCount');if(gc)gc.textContent=label;
+    var n=connectedCount();
+    var gc=$('#gateCount');if(gc)gc.textContent=(n===0?'Not connected yet':'Connected');
     var sc=$('#startClipping');if(sc)sc.disabled=(n===0);
-    var dl=$('#disconnectAll');if(dl){dl.hidden=(n===0);if(n===0){dl.classList.remove('confirm');dl.textContent='Disconnect channel';}}
   }
   function refreshStatus(){
     if(!userId())return Promise.resolve(0);
@@ -689,20 +684,27 @@
   }
   function startConnect(b){
     if(b.classList.contains('done')||!userId())return;
-    var inGate=!!b.closest('#gate');var msg=inGate?gateMsg:connMsg;
+    var inGate=!!b.closest('#gate');var msg=inGate?gateMsg:$('#setupMsg');
     if(inGate)ssSet('cdfy_gate_active','1'); // so the gate re-opens to show the result on return
     b.textContent='Opening…';if(msg)msg.textContent='';
     api('/api/connect','POST',{username:userId(),platform:b.dataset.platform}).then(function(res){
       var d=res.data||{};
       if(d.authorize_url){window.location.href=d.authorize_url;return;}
       b.textContent='Connect';if(inGate)ssDel('cdfy_gate_active');
-      var m=d.error==='profile_limit'?'We’re at capacity for new channel connections right now — nothing on your end. We’re adding more; you can keep exploring and try again shortly.'
+      var m=d.error==='profile_limit'?'We’re at capacity for new channel connections right now — nothing on your end. We’re adding more; try again shortly.'
            :d.error==='not_configured'?'Connecting isn’t switched on yet — try again in a bit.'
            :'Could not start connecting — please try again.';
       if(msg)msg.textContent=m;
     }).catch(function(){b.textContent='Connect';if(inGate)ssDel('cdfy_gate_active');if(msg)msg.textContent='Could not start connecting — please try again.';});
   }
   $$('[data-conn]').forEach(function(b){b.addEventListener('click',function(){startConnect(b);});});
+
+  // delete the account's provider profile (removes all channels, frees the slot)
+  function doDisconnect(onDone){
+    api('/api/disconnect','POST',{}).then(function(res){
+      refreshStatus().then(function(){if(onDone)onDone(res.status===200?null:'err');});
+    }).catch(function(){if(onDone)onDone('err');});
+  }
 
   // ---- first-entry gate ----
   function openGate(){if(!gate)return;applyConnected();gate.classList.add('open');gate.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';}
@@ -711,24 +713,6 @@
   if(gateLater)gateLater.addEventListener('click',function(e){e.preventDefault();gateSkip=true;closeGate();});
   var startClipping=$('#startClipping');
   if(startClipping)startClipping.addEventListener('click',function(){if(startClipping.disabled)return;ssDel('cdfy_gate_active');closeGate();});
-
-  // ---- disconnect all (deletes the account's provider profile; two-tap confirm) ----
-  var disconnectAll=$('#disconnectAll');
-  if(disconnectAll)disconnectAll.addEventListener('click',function(e){
-    e.preventDefault();
-    if(!disconnectAll.classList.contains('confirm')){
-      disconnectAll.classList.add('confirm');
-      disconnectAll.textContent='Disconnect your channel? Tap again to confirm';
-      return;
-    }
-    disconnectAll.classList.remove('confirm');
-    disconnectAll.textContent='Disconnecting…';
-    if(connMsg)connMsg.textContent='';
-    api('/api/disconnect','POST',{}).then(function(res){
-      if(res.status===200){refreshStatus();if(connMsg)connMsg.textContent='Your channel was disconnected. You can connect again anytime.';}
-      else{disconnectAll.textContent='Disconnect all accounts';if(connMsg)connMsg.textContent='Could not disconnect — please try again.';}
-    }).catch(function(){disconnectAll.textContent='Disconnect all accounts';if(connMsg)connMsg.textContent='Could not disconnect — please try again.';});
-  });
 
   // ---- chat ----
   var chatLog=$('#chatLog'),chatInput=$('#chatInput');
@@ -795,6 +779,28 @@
     root.appendChild(head('Account'));
     root.appendChild(row('<div><b>Signed in</b><p>'+u.email+'</p></div><div style="color:var(--mut);font-size:13.5px">'+(u.plan==='free'?'Free plan':u.plan+' plan')+'</div>'));
 
+    // Channels — the one place connections are managed after first entry
+    root.appendChild(head('Channels'));
+    var setupMsg=document.createElement('p');setupMsg.id='setupMsg';setupMsg.style.cssText='color:var(--mut);font-size:13px;margin:-2px 0 10px';root.appendChild(setupMsg);
+    SUPPORTED.forEach(function(p){
+      var c=connected[p],label=plabel(p);
+      if(c){
+        var cr=row('<div><b>'+label+'</b><p>Connected'+(c.handle?' · '+c.handle:'')+'</p></div>');
+        var db=document.createElement('button');db.className='connbtn';db.textContent='Disconnect';
+        db.addEventListener('click',function(){
+          if(db.dataset.confirm!=='1'){db.dataset.confirm='1';db.textContent='Tap to confirm';return;}
+          db.textContent='Disconnecting…';db.disabled=true;setupMsg.textContent='';
+          doDisconnect(function(err){if(err){db.disabled=false;db.textContent='Disconnect';setupMsg.textContent='Could not disconnect — please try again.';}else{renderSetup();}});
+        });
+        cr.appendChild(db);root.appendChild(cr);
+      }else{
+        var nr=row('<div><b>'+label+'</b><p>Not connected</p></div>');
+        var cb=document.createElement('button');cb.className='connbtn';cb.setAttribute('data-conn','');cb.setAttribute('data-platform',p);cb.textContent='Connect';
+        cb.addEventListener('click',function(){startConnect(cb);});
+        nr.appendChild(cb);root.appendChild(nr);
+      }
+    });
+
     var pr=row('<div><b>Daily pace</b><p>Clips cut per day</p></div>');
     var sel=document.createElement('select');
     PACES.forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n+' per day';if(n===u.dailyPace)o.selected=true;sel.appendChild(o);});
@@ -824,7 +830,7 @@
       root.appendChild(none);
     }else{
       platforms.forEach(function(p){
-        var cs=csFor(p),label=p.charAt(0).toUpperCase()+p.slice(1);
+        var cs=csFor(p),label=plabel(p);
         var cr=row('<div><b>'+label+' — Shorts length</b><p>Applies to '+label+' only</p></div>');
         var s=document.createElement('select');
         LENGTHS.forEach(function(L){var o=document.createElement('option');o.value=L[0];o.textContent=L[1];if(L[0]===cs.shortsLength)o.selected=true;s.appendChild(o);});
@@ -848,8 +854,9 @@
   function renderBilling(){
     if(!S||!S.user)return;
     var plan=S.user.plan,state=$('#billState');
+    var left=(S.user.freeClipsLeft!=null?S.user.freeClipsLeft:10);
     if(state)state.textContent=(plan==='free')
-      ?'Free — 10 clips on us. Posting pauses at 10 until you subscribe; clips stay banked.'
+      ?'Free — '+left+' of 10 free clips left. Posting pauses at 10 until you subscribe; clips stay banked.'
       :'You are on the '+plan+' plan.';
     $$('.curtag',app).forEach(function(t){t.remove();});
     $$('[data-plan]',app).forEach(function(b){
@@ -883,9 +890,10 @@
     // resolve real connection status BEFORE revealing the app (no flash)
     return refreshStatus().then(function(count){
       enterApp(entryTab());
-      // connect-return feedback goes to whichever surface is up
-      if(qp.get('connect_status')==='success'){var m='Connected — your account is linked.';if(gateMsg)gateMsg.textContent=m;if(connMsg)connMsg.textContent=m;}
-      else if(qp.get('connect_status')){var m2='That connection did not finish ('+qp.get('connect_status')+'). You can try again below.';if(gateMsg)gateMsg.textContent=m2;if(connMsg)connMsg.textContent=m2;}
+      // connect-return feedback: the gate (first-time) shows its connected state;
+      // a Setup reconnect just re-renders Setup with the updated status.
+      if(qp.get('connect_status')==='success'){if(gateMsg)gateMsg.textContent='Connected — your channel is linked.';}
+      else if(qp.get('connect_status')){if(gateMsg)gateMsg.textContent='That connection did not finish ('+qp.get('connect_status')+'). You can try again.';}
       // gate decision
       if(isReturn&&gateActive){ssDel('cdfy_gate_active');openGate();}        // returned from a gate connect → show result + Start clipping
       else if(count===0&&!gateSkip){openGate();}                            // zero connections → mandatory gate
