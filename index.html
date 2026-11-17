@@ -249,10 +249,24 @@
   .composer input:focus{outline:none}
   .composer button{width:38px;height:38px;border-radius:50%;border:none;background:var(--coral);color:#fff;font-size:16px;cursor:pointer;flex:none}
   .foldergrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+  .foldergrid.list{grid-template-columns:1fr;gap:12px}
   .folder{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:16px;box-shadow:var(--sh-sm)}
   .folder .fthumb{height:86px;border-radius:10px;background:linear-gradient(135deg,#a6bcd2,#7890aa);margin-bottom:12px}
   .folder b{font-size:14.5px;display:block;margin-bottom:4px}
   .folder span{color:var(--mut);font-size:13px}
+  .srccard .srchead b{font-size:14.5px;display:block;margin-bottom:3px}
+  .srccard .srchead span{color:var(--mut);font-size:12.5px}
+  .cliplist{margin-top:10px}
+  .clipitem{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .clipitem .badge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:var(--r-pill);white-space:nowrap}
+  .badge.posted{background:var(--ok);color:#fff}
+  .badge.waiting{background:var(--soft-2);color:var(--mut-2);border:1px solid var(--line-2)}
+  .badge.retry{background:#fff3e0;color:#b35b00;border:1px solid #f0d2a8}
+  .clipitem .cmeta{color:var(--mut);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .clipitem .cact{margin-left:auto;font-size:13px;font-weight:700;white-space:nowrap}
+  a.cact{color:var(--coral-dk);text-decoration:none}
+  a.cact:hover{text-decoration:underline}
+  span.cact{color:var(--mut-2)}
   .setrow{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:16px;margin-bottom:12px}
   .setrow b{font-size:15px}
   .setrow p{color:var(--mut);font-size:13.5px}
@@ -839,19 +853,46 @@
     var grid=$('#folderGrid'),empty=$('#clipsEmpty');if(!grid)return;
     api('/api/clips').then(function(res){
       var folders=(res.data&&res.data.folders)||[];
-      grid.innerHTML='';
+      grid.innerHTML='';grid.classList.remove('list');
       if(!folders.length){renderClipsEmpty();return;}
-      empty.hidden=true;
-      folders.forEach(function(f){
-        var parts=[f.total+' clip'+(f.total===1?'':'s')];
-        if(f.posted)parts.push(f.posted+' posted');
-        if(f.banked)parts.push(f.banked+' banked');
-        var d=document.createElement('div');d.className='folder';
-        d.innerHTML='<div class="fthumb"></div><b></b><span></span>';
-        d.querySelector('b').textContent=f.title;d.querySelector('span').textContent=parts.join(' · ');
-        grid.appendChild(d);
-      });
-    }).catch(function(){grid.innerHTML='';renderClipsEmpty();});
+      empty.hidden=true;grid.classList.add('list');
+      folders.forEach(function(f){grid.appendChild(sourceCard(f));});
+    }).catch(function(){grid.innerHTML='';grid.classList.remove('list');renderClipsEmpty();});
+  }
+  function clipDate(s){if(!s)return '';try{return new Date(s).toLocaleDateString(undefined,{month:'short',day:'numeric'});}catch(e){return '';}}
+  // one clip = one row: status badge + date + action (watch link / status line)
+  function clipRow(c){
+    var row=document.createElement('div');row.className='clipitem';
+    var badge=document.createElement('span');badge.className='badge '+(c.status==='posted'?'posted':c.status==='failed'?'retry':'waiting');
+    badge.textContent=c.status==='posted'?'Posted':c.status==='failed'?'Retrying':'Waiting';
+    var meta=document.createElement('span');meta.className='cmeta';
+    row.appendChild(badge);row.appendChild(meta);
+    if(c.status==='posted'){
+      meta.textContent=clipDate(c.postedAt||c.createdAt);
+      if(c.url){var a=document.createElement('a');a.className='cact';a.href=c.url;a.target='_blank';a.rel='noopener';a.textContent='Watch ↗';row.appendChild(a);}
+    }else if(c.status==='failed'){
+      meta.textContent=c.reason==='daily_limit'?'Channel hit YouTube’s daily upload limit':'Couldn’t post';
+      var s=document.createElement('span');s.className='cact';s.textContent='Retrying automatically';row.appendChild(s);
+    }else{ // banked
+      meta.textContent='Made '+clipDate(c.createdAt);
+      var w=document.createElement('span');w.className='cact';w.textContent='Posts as your plan allows';row.appendChild(w);
+    }
+    return row;
+  }
+  function sourceCard(f){
+    var card=document.createElement('div');card.className='folder srccard';
+    var head=document.createElement('div');head.className='srchead';head.innerHTML='<b></b><span></span>';
+    head.querySelector('b').textContent=f.title;
+    var parts=[f.total+' clip'+(f.total===1?'':'s')];
+    if(f.posted)parts.push(f.posted+' posted');
+    if(f.banked)parts.push(f.banked+' waiting');
+    if(f.failed)parts.push(f.failed+' retrying');
+    head.querySelector('span').textContent=parts.join(' · ');
+    card.appendChild(head);
+    var list=document.createElement('div');list.className='cliplist';
+    (f.clips||[]).slice().reverse().forEach(function(c){list.appendChild(clipRow(c));});
+    card.appendChild(list);
+    return card;
   }
   // Empty Clips tab: no connection -> wizard step 1 inline (same component +
   // connect process as the gate). Connected but no clips yet -> one plain line.
