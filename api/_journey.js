@@ -50,12 +50,26 @@ async function start(user, connected) {
       const key = chanKey(p, handle);
       await q("INSERT INTO jobs(user_id, type, payload, priority, channel) VALUES ($1,'first_batch',$2,100,$3)",
         [user.id, JSON.stringify({ source: 'youtube_channel', strategy: 'most_watched_long', count: 3, platform: p, handle }), key]);
+      // first message in this channel's thread: the scoped "what you can do here" note, once.
+      const h = handle && String(handle).charAt(0) === '@' ? handle : '@' + (handle || p);
+      await agent(user.id, key, "This thread is just for " + h + ". Anything you tell me here — length, pace, topics, pausing — applies to this channel only. For everything at once, use All channels.");
       j.started[p] = true; j.awaitingLinks = false; changed = true;
     }
-    // the "I'm starting" message is account-level (All channels), once; the
-    // per-channel "first clips are live" announcements come from reconcile().
+    // first message in the All channels thread: the one-time "what you can do
+    // here" note, posted once the moment a channel connects (replaces the old
+    // "change anything by chatting" note — never both).
     if (!j.startMsgSent) {
-      await agent(user.id, 'all', "On it — I'm pulling from your most-watched long videos and cutting your first clips. Your first ones post today.");
+      await agent(user.id, 'all', `You're live — I'm already picking your first clips. You don't have to set anything up; I handle the clipping and posting.
+
+If you want anything changed, just tell me here, like:
+• "Clip this video: [paste a link]"
+• "Make my clips shorter — under a minute"
+• "Post 5 a day instead of 3"
+• "Pause posting" or "Start again"
+• "Always grab the parts about money" / "Never post about politics"
+• "What's posted so far?"
+
+Anything about your clips — just ask here.`);
       j.startMsgSent = true; changed = true;
     }
   }
@@ -102,11 +116,8 @@ async function reconcile(user) {
     }
   }
 
-  // one-time "change anything by chatting" note -> All channels
-  if (anyFirst && !j.changeNoteSent) {
-    await agent(user.id, 'all', "Want them longer, shorter, more per day, or different topics? Just tell me here (or in a channel to scope it) and I'll adjust.");
-    j.changeNoteSent = true;
-  }
+  // (the one-time "what you can do here" note is now posted at connect in
+  // start(), to the All channels thread — see there. No change-note here.)
 
   // clips made but not posted (engine marks them 'failed' + auto-retries, e.g.
   // the channel hit YouTube's daily upload cap) -> one honest note per channel.
