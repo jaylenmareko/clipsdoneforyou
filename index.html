@@ -258,6 +258,10 @@
   .srccard .srchead span{color:var(--mut);font-size:12.5px}
   .cliplist{margin-top:10px}
   .clipitem{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .clipitem .clipthumb{position:relative;flex:none;width:64px;height:40px;border-radius:8px;overflow:hidden;background:#000;display:block}
+  .clipitem .clipthumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .clipitem .clipthumb .pl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+  .clipitem .clipthumb:hover .pl{transform:scale(1.15)}
   .clipitem .badge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:var(--r-pill);white-space:nowrap}
   .badge.posted{background:var(--ok);color:#fff}
   .badge.waiting{background:var(--soft-2);color:var(--mut-2);border:1px solid var(--line-2)}
@@ -860,6 +864,7 @@
     }).catch(function(){grid.innerHTML='';grid.classList.remove('list');renderClipsEmpty();});
   }
   function clipDate(s){if(!s)return '';try{return new Date(s).toLocaleDateString(undefined,{month:'short',day:'numeric'});}catch(e){return '';}}
+  function ytId(u){if(!u)return null;var m=u.match(/(?:shorts\/|watch\?v=|youtu\.be\/|embed\/|\/v\/)([A-Za-z0-9_-]{6,})/);return m?m[1]:null;}
   // one clip = one row: status badge + date + action (watch link / status line)
   function clipRow(c){
     var row=document.createElement('div');row.className='clipitem';
@@ -869,6 +874,13 @@
     row.appendChild(badge);row.appendChild(meta);
     if(c.status==='posted'){
       meta.textContent=clipDate(c.postedAt||c.createdAt);
+      var vid=ytId(c.url);
+      if(c.url&&vid){
+        var tl=document.createElement('a');tl.className='clipthumb';tl.href=c.url;tl.target='_blank';tl.rel='noopener';tl.title='Watch on YouTube';
+        var im=document.createElement('img');im.loading='lazy';im.alt='';im.src='https://i.ytimg.com/vi/'+vid+'/hqdefault.jpg';im.onerror=function(){tl.style.display='none';};
+        var pl=document.createElement('span');pl.className='pl';pl.textContent='▶';
+        tl.appendChild(im);tl.appendChild(pl);row.insertBefore(tl,badge);
+      }
       if(c.url){var a=document.createElement('a');a.className='cact';a.href=c.url;a.target='_blank';a.rel='noopener';a.textContent='Watch ↗';row.appendChild(a);}
     }else if(c.status==='failed'){
       meta.textContent=c.reason==='daily_limit'?'Channel hit YouTube’s daily upload limit':'Couldn’t post';
