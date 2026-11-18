@@ -85,6 +85,9 @@ function ensureSchema() {
       ALTER TABLE clips ADD COLUMN IF NOT EXISTS title text;
       ALTER TABLE clips ADD COLUMN IF NOT EXISTS description text;
       ALTER TABLE clips ADD COLUMN IF NOT EXISTS duration int;
+      -- a preview image the engine renders for the clip (a frame, or the source
+      -- video's thumbnail) so every card shows a real preview, not a placeholder.
+      ALTER TABLE clips ADD COLUMN IF NOT EXISTS thumbnail_url text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS journey jsonb NOT NULL DEFAULT '{}'::jsonb;
       -- per-channel conversations: every message belongs to one conversation
       -- ('all' = All channels, or 'platform:handle' = a channel). Existing rows

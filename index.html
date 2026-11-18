@@ -293,7 +293,8 @@
   .clipbar .selcount{color:var(--mut);font-size:13px}
   .clipgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
   .clipcard{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-sm);overflow:hidden;display:flex;flex-direction:column}
-  .cc-thumb{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,#a6bcd2,#7890aa);display:block}
+  .cc-thumb{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,#8ea3bd,#5f7085);display:block}
+  .cc-thumb.noimg::after{content:'▶';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.5);font-size:28px}
   .cc-thumb img{width:100%;height:100%;object-fit:cover;display:block}
   .cc-dur{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.78);color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:5px}
   .cc-check{position:absolute;left:9px;top:9px;width:19px;height:19px;cursor:pointer;z-index:2}
@@ -961,10 +962,11 @@
     var card=document.createElement('div');card.className='clipcard';card.id='cc-'+c.id;
     var thumb=document.createElement('div');thumb.className='cc-thumb';
     var vid=ytId(c.url);
-    if(c.status==='posted'&&vid){
-      var im=document.createElement('img');im.loading='lazy';im.alt='';im.src='https://i.ytimg.com/vi/'+vid+'/hqdefault.jpg';im.onerror=function(){im.style.display='none';};thumb.appendChild(im);
-      var play=document.createElement('span');play.className='cc-play';play.textContent='▶';thumb.appendChild(play);
-    }
+    var src=c.thumbnailUrl||((c.status==='posted'&&vid)?('https://i.ytimg.com/vi/'+vid+'/hqdefault.jpg'):null);
+    if(src){
+      var im=document.createElement('img');im.loading='lazy';im.alt='';im.src=src;im.onerror=function(){thumb.classList.add('noimg');im.remove();};thumb.appendChild(im);
+    }else{thumb.classList.add('noimg');}
+    if(c.status==='posted'&&c.url){var play=document.createElement('span');play.className='cc-play';play.textContent='▶';thumb.appendChild(play);}
     if(c.duration){var dur=document.createElement('span');dur.className='cc-dur';dur.textContent=fmtDur(c.duration);thumb.appendChild(dur);}
     if(c.selectable){var chk=document.createElement('input');chk.type='checkbox';chk.className='cc-check';chk.id='cc-chk-'+c.id;chk.checked=!!clipsData.selected[c.id];chk.addEventListener('change',function(){clipsData.selected[c.id]=chk.checked;syncSelection();});thumb.appendChild(chk);}
     card.appendChild(thumb);

@@ -20,7 +20,7 @@ async function postedCountFor(userId) {
 
 async function listClips(user, res) {
   const [clipsR, csR, errR] = await Promise.all([
-    q(`SELECT id, source_title, title, description, platform, status, url, posted_at, created_at, duration
+    q(`SELECT id, source_title, title, description, platform, status, url, posted_at, created_at, duration, thumbnail_url
        FROM clips WHERE user_id=$1 ORDER BY created_at DESC, id DESC`, [user.id]),
     q('SELECT platform, handle FROM channel_settings WHERE user_id=$1', [user.id]),
     q("SELECT channel, payload FROM jobs WHERE user_id=$1 AND status='error' ORDER BY id DESC", [user.id]),
@@ -42,6 +42,7 @@ async function listClips(user, res) {
     handle: handleByPlat[c.platform] || null,
     status: c.status,
     url: c.url || null,
+    thumbnailUrl: c.thumbnail_url || null,
     duration: c.duration || null,
     postedAt: c.posted_at,
     createdAt: c.created_at,
