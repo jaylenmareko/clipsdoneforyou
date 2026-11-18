@@ -236,11 +236,14 @@
   .aview .sub2{color:var(--mut);font-size:14.5px;margin-bottom:20px}
   .freepill{display:inline-flex;align-items:center;gap:7px;background:var(--coral-soft);color:var(--coral-dk);font-weight:700;font-size:13px;padding:6px 12px;border-radius:var(--r-pill)}
   .freepill i{width:7px;height:7px;border-radius:50%;background:var(--coral);display:inline-block}
-  /* chat view: centered column, scrolling thread, composer pinned to the bottom */
+  /* chat view: the message list fills the column and is the ONLY thing that
+     scrolls; the composer floats locked over the bottom, with the messages
+     scrolling underneath it (padded so none hide behind it). */
   .aview[data-view=chat]{padding:0;align-items:stretch;overflow:hidden}
-  .chatcol{flex:1;min-height:0;display:flex;flex-direction:column;max-width:720px;width:100%;margin:0 auto}
-  #chatLog{flex:1;min-height:0;overflow-y:auto;padding:28px 20px 12px}
-  .convdisabled{color:var(--mut-2);font-size:13.5px;text-align:center;margin:0 0 16px}
+  .chatcol{flex:1;min-height:0;position:relative;max-width:720px;width:100%;margin:0 auto}
+  #chatLog{position:absolute;inset:0;overflow-y:auto;padding:28px 20px 98px}
+  .composer,.convdisabled{position:absolute;left:16px;right:16px;bottom:16px;z-index:3}
+  .convdisabled{text-align:center;color:var(--mut-2);font-size:13.5px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r-pill);padding:13px;box-shadow:0 8px 24px rgba(16,24,40,.12),0 2px 6px rgba(16,24,40,.08)}
   @media(max-width:860px){
     .sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .22s var(--ease);box-shadow:4px 0 24px rgba(0,0,0,.14)}
     .sidebar.open{transform:none}
@@ -260,7 +263,7 @@
   .connrow .pl{font-weight:650;font-size:14.5px}
   .connbtn{border:1px solid var(--line-2);background:#fff;padding:7px 14px;border-radius:var(--r-pill);font:inherit;font-weight:700;font-size:13px;cursor:pointer}
   .connbtn.done{background:var(--ok);border-color:var(--ok);color:#fff}
-  .composer{display:flex;gap:8px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r-pill);padding:6px;margin:0 20px 18px}
+  .composer{display:flex;gap:8px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r-pill);padding:7px 7px 7px 8px;box-shadow:0 8px 24px rgba(16,24,40,.12),0 2px 6px rgba(16,24,40,.08)}
   .composer input{flex:1;border:none;font:inherit;font-size:14.5px;padding:8px 12px;background:transparent;color:var(--ink)}
   .composer input:focus{outline:none}
   .composer button{width:38px;height:38px;border-radius:50%;border:none;background:var(--coral);color:#fff;font-size:16px;cursor:pointer;flex:none}
@@ -727,6 +730,7 @@
     ssSet('cdfy_tab',name);
     if(location.hash!=='#'+name){try{history.replaceState(null,'',location.pathname+'#'+name);}catch(e){}}
     closeDrawer();
+    if(name==='chat')scrollChatBottom(false); // land on the newest message
     if(name==='clips')renderClips();
     if(name==='setup')renderSetup();
     if(name==='billing')renderBilling();
@@ -858,6 +862,7 @@
   var chatLog=$('#chatLog'),chatInput=$('#chatInput');
   var activeConv='all';
   function addMsg(role,text){var d=document.createElement('div');d.className='msg'+(role==='me'?' me':'');d.textContent=text;chatLog.appendChild(d);}
+  function scrollChatBottom(smooth){if(!chatLog)return;try{chatLog.scrollTo({top:chatLog.scrollHeight,behavior:smooth?'smooth':'auto'});}catch(e){chatLog.scrollTop=chatLog.scrollHeight;}}
   // conversation list: All channels, then connected channels (in order), then
   // disconnected channels that still have history.
   function buildConvs(){
@@ -896,8 +901,9 @@
     var comp=$('#composer'),dis=$('#convDisabled');
     if(comp)comp.style.display=disabled?'none':'';
     if(dis)dis.hidden=!disabled;
+    scrollChatBottom(false); // open a thread placed at the newest message
   }
-  function setConv(key){activeConv=key;renderChatHistory();window.scrollTo(0,0);}
+  function setConv(key){activeConv=key;renderChatHistory();}
   function applyChanged(ch){
     if(!ch||!S||!S.user)return;
     if(ch.paused!==undefined)S.user.paused=ch.paused;
@@ -908,13 +914,14 @@
   function sendChat(){
     var t=chatInput.value.trim();if(!t||!userId())return;
     if(activeConvObj().connected===false)return;
-    addMsg('me',t);chatInput.value='';
+    addMsg('me',t);chatInput.value='';scrollChatBottom(true);
     if(S){S.messages=S.messages||[];S.messages.push({role:'me',text:t,conversation:activeConv});}
     api('/api/chat','POST',{text:t,conversation:activeConv}).then(function(res){
       if(res.status===200){addMsg('agent',res.data.reply);if(S)S.messages.push({role:'agent',text:res.data.reply,conversation:res.data.conversation||activeConv});applyChanged(res.data.changed);}
       else if(res.data&&res.data.error==='not_configured')addMsg('agent','Accounts aren’t switched on yet.');
       else addMsg('agent','Something went wrong — please try again.');
-    }).catch(function(){addMsg('agent','Network error — please try again.');});
+      scrollChatBottom(true);
+    }).catch(function(){addMsg('agent','Network error — please try again.');scrollChatBottom(true);});
   }
   var chatSendBtn=$('#chatSend');
   if(chatSendBtn)chatSendBtn.addEventListener('click',sendChat);
