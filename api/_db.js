@@ -103,6 +103,14 @@ function ensureSchema() {
 }
 
 async function q(text, params) {
+  // Boundary: the SITE never creates clips. Only the external engine writes
+  // clips rows (and a 'posted' row only ever exists behind a real upload). The
+  // site reads clips, and may UPDATE/DELETE a user's own clips (queue, retitle,
+  // remove) — but it must never INSERT one. Blocked at the data layer so no
+  // route, script, or future mistake can seed fake/demo clips for any user.
+  if (/insert\s+into\s+clips\b/i.test(text)) {
+    throw new Error('blocked: the site never inserts into clips — only the engine writes clips rows');
+  }
   await ensureSchema();
   return getPool().query(text, params);
 }
