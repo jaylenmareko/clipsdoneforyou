@@ -88,6 +88,9 @@ function ensureSchema() {
       -- a preview image the engine renders for the clip (a frame, or the source
       -- video's thumbnail) so every card shows a real preview, not a placeholder.
       ALTER TABLE clips ADD COLUMN IF NOT EXISTS thumbnail_url text;
+      -- a playable https URL for the rendered clip (engine-hosted mp4), so the
+      -- Clips tab can show a real video player per card like the clip machine.
+      ALTER TABLE clips ADD COLUMN IF NOT EXISTS video_url text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS journey jsonb NOT NULL DEFAULT '{}'::jsonb;
       -- per-channel conversations: every message belongs to one conversation
       -- ('all' = All channels, or 'platform:handle' = a channel). Existing rows
