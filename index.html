@@ -287,6 +287,33 @@
   a.cact{color:var(--coral-dk);text-decoration:none}
   a.cact:hover{text-decoration:underline}
   span.cact{color:var(--mut-2)}
+  /* ---- Clips tab: card grid + top bar ---- */
+  .clipbar{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+  .clipbar label{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:650;color:var(--ink-2);cursor:pointer}
+  .clipbar .selcount{color:var(--mut);font-size:13px}
+  .clipgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+  .clipcard{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-sm);overflow:hidden;display:flex;flex-direction:column}
+  .cc-thumb{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,#a6bcd2,#7890aa);display:block}
+  .cc-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .cc-dur{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.78);color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:5px}
+  .cc-check{position:absolute;left:9px;top:9px;width:19px;height:19px;cursor:pointer;z-index:2}
+  .cc-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;text-shadow:0 1px 6px rgba(0,0,0,.6);pointer-events:none}
+  .cc-body{padding:12px 14px 8px;display:flex;flex-direction:column;gap:6px;flex:1}
+  .cc-title{font-weight:700;font-size:14px;line-height:1.35;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .cc-meta{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-chip{align-self:flex-start;font-size:11px;font-weight:800;padding:3px 9px;border-radius:var(--r-pill)}
+  .chip-posted{background:var(--ok);color:#fff}
+  .chip-banked{background:var(--soft-2);color:var(--mut-2);border:1px solid var(--line-2)}
+  .chip-failed{background:#fdecec;color:#b42318;border:1px solid #f3c6c6}
+  .chip-queued{background:#eef2ff;color:#3538cd;border:1px solid #c7d0f7}
+  .cc-actions{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 14px}
+  .cc-btn{border:1px solid var(--line-2);background:#fff;color:var(--ink-2);padding:6px 11px;border-radius:9px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
+  .cc-btn.primary{background:var(--coral);border-color:var(--coral);color:#fff}
+  .cc-btn.danger:hover{color:var(--coral-dk);border-color:var(--coral)}
+  .cc-btn[disabled]{opacity:.5;cursor:not-allowed}
+  .cc-note{font-size:12px;color:var(--mut-2);padding:0 14px 12px}
+  .cc-edit-title{width:100%;font:inherit;font-size:14px;font-weight:700;padding:8px 10px;border:1px solid var(--line-2);border-radius:9px;background:var(--soft-2);color:var(--ink)}
+  .cc-edit-desc{width:100%;min-height:60px;font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line-2);border-radius:9px;background:var(--soft-2);color:var(--ink);resize:vertical}
   .setrow{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:16px;margin-bottom:12px}
   .setrow b{font-size:15px}
   .setrow p{color:var(--mut);font-size:13.5px}
@@ -501,7 +528,8 @@
     <h2>Your clips</h2>
     <div id="clipsControls"></div>
     <p id="clipsMsg" class="ctrlmsg" hidden></p>
-    <div class="foldergrid" id="folderGrid"></div>
+    <div id="clipsBar" hidden></div>
+    <div id="folderGrid"></div>
     <div id="clipsEmpty" hidden></div>
   </div>
 
@@ -888,60 +916,99 @@
   if(chatSendBtn)chatSendBtn.addEventListener('click',sendChat);
   if(chatInput)chatInput.addEventListener('keydown',function(e){if(e.key==='Enter')sendChat();});
 
-  // ---- clips ----
+  // ---- clips (card grid) ----
+  var clipsData={clips:[],selected:{},plan:'free',atCap:false};
+  var capNoteIds={};
   function renderClips(){
     renderClipsControls();
-    var grid=$('#folderGrid'),empty=$('#clipsEmpty');if(!grid)return;
+    var grid=$('#folderGrid'),bar=$('#clipsBar'),empty=$('#clipsEmpty');if(!grid)return;
     api('/api/clips').then(function(res){
-      var folders=(res.data&&res.data.folders)||[];
-      grid.innerHTML='';grid.classList.remove('list');
-      if(!folders.length){renderClipsEmpty();return;}
-      empty.hidden=true;grid.classList.add('list');
-      folders.forEach(function(f){grid.appendChild(sourceCard(f));});
-    }).catch(function(){grid.innerHTML='';grid.classList.remove('list');renderClipsEmpty();});
+      var d=res.data||{};var clips=d.clips||[];
+      clipsData={clips:clips,selected:clipsData.selected||{},plan:d.plan,atCap:d.atCap};
+      grid.innerHTML='';grid.className='';
+      if(bar){bar.hidden=true;bar.innerHTML='';}
+      if(!clips.length){renderClipsEmpty();return;}
+      empty.hidden=true;grid.className='clipgrid';
+      renderClipBar();
+      clips.forEach(function(c){grid.appendChild(clipCard(c));});
+      syncSelection();
+    }).catch(function(){grid.innerHTML='';grid.className='';renderClipsEmpty();});
   }
   function clipDate(s){if(!s)return '';try{return new Date(s).toLocaleDateString(undefined,{month:'short',day:'numeric'});}catch(e){return '';}}
   function ytId(u){if(!u)return null;var m=u.match(/(?:shorts\/|watch\?v=|youtu\.be\/|embed\/|\/v\/)([A-Za-z0-9_-]{6,})/);return m?m[1]:null;}
-  // one clip = one row: status badge + date + action (watch link / status line)
-  function clipRow(c){
-    var row=document.createElement('div');row.className='clipitem';
-    var badge=document.createElement('span');badge.className='badge '+(c.status==='posted'?'posted':c.status==='failed'?'retry':'waiting');
-    badge.textContent=c.status==='posted'?'Posted':c.status==='failed'?'Retrying':'Waiting';
-    var meta=document.createElement('span');meta.className='cmeta';
-    row.appendChild(badge);row.appendChild(meta);
-    if(c.status==='posted'){
-      meta.textContent=clipDate(c.postedAt||c.createdAt);
-      var vid=ytId(c.url);
-      if(c.url&&vid){
-        var tl=document.createElement('a');tl.className='clipthumb';tl.href=c.url;tl.target='_blank';tl.rel='noopener';tl.title='Watch on YouTube';
-        var im=document.createElement('img');im.loading='lazy';im.alt='';im.src='https://i.ytimg.com/vi/'+vid+'/hqdefault.jpg';im.onerror=function(){tl.style.display='none';};
-        var pl=document.createElement('span');pl.className='pl';pl.textContent='▶';
-        tl.appendChild(im);tl.appendChild(pl);row.insertBefore(tl,badge);
-      }
-      if(c.url){var a=document.createElement('a');a.className='cact';a.href=c.url;a.target='_blank';a.rel='noopener';a.textContent='Watch ↗';row.appendChild(a);}
-    }else if(c.status==='failed'){
-      meta.textContent=c.reason==='daily_limit'?'Channel hit YouTube’s daily upload limit':'Couldn’t post';
-      var s=document.createElement('span');s.className='cact';s.textContent='Retrying automatically';row.appendChild(s);
-    }else{ // banked
-      meta.textContent='Made '+clipDate(c.createdAt);
-      var w=document.createElement('span');w.className='cact';w.textContent='Posts as your plan allows';row.appendChild(w);
-    }
-    return row;
+  function fmtDur(s){s=+s||0;var m=Math.floor(s/60),r=s%60;return m+':'+(r<10?'0':'')+r;}
+  function selectedIds(){return Object.keys(clipsData.selected).filter(function(k){return clipsData.selected[k];});}
+  function renderClipBar(){
+    var bar=$('#clipsBar');if(!bar)return;bar.hidden=false;bar.className='clipbar';bar.innerHTML='';
+    var lbl=document.createElement('label');var all=document.createElement('input');all.type='checkbox';all.id='selAll';
+    lbl.appendChild(all);lbl.appendChild(document.createTextNode(' Select all'));
+    var up=document.createElement('button');up.className='cc-btn primary';up.id='uploadSel';up.textContent='Upload selected';
+    var cnt=document.createElement('span');cnt.className='selcount';cnt.id='selCount';
+    bar.appendChild(lbl);bar.appendChild(up);bar.appendChild(cnt);
+    all.addEventListener('change',function(){clipsData.clips.forEach(function(c){if(c.selectable)clipsData.selected[c.id]=all.checked;});syncSelection();});
+    up.addEventListener('click',function(){uploadIds(selectedIds());});
   }
-  function sourceCard(f){
-    var card=document.createElement('div');card.className='folder srccard';
-    var head=document.createElement('div');head.className='srchead';head.innerHTML='<b></b><span></span>';
-    head.querySelector('b').textContent=f.title;
-    var parts=[f.total+' clip'+(f.total===1?'':'s')];
-    if(f.posted)parts.push(f.posted+' posted');
-    if(f.banked)parts.push(f.banked+' waiting');
-    if(f.failed)parts.push(f.failed+' retrying');
-    head.querySelector('span').textContent=parts.join(' · ');
-    card.appendChild(head);
-    var list=document.createElement('div');list.className='cliplist';
-    (f.clips||[]).slice().reverse().forEach(function(c){list.appendChild(clipRow(c));});
-    card.appendChild(list);
+  function syncSelection(){
+    var selectable=clipsData.clips.filter(function(c){return c.selectable;});
+    var ids=selectedIds();
+    var cnt=$('#selCount');if(cnt)cnt.textContent=ids.length+' selected';
+    var up=$('#uploadSel');if(up)up.disabled=!ids.length;
+    var all=$('#selAll');if(all){var allSel=selectable.length>0&&selectable.every(function(c){return clipsData.selected[c.id];});all.checked=allSel;all.indeterminate=!allSel&&ids.length>0;}
+    clipsData.clips.forEach(function(c){var cb=document.getElementById('cc-chk-'+c.id);if(cb)cb.checked=!!clipsData.selected[c.id];});
+  }
+  function actBtn(label,cls,fn){var b=document.createElement('button');b.className='cc-btn'+(cls?' '+cls:'');b.textContent=label;b.addEventListener('click',fn);return b;}
+  function clipCard(c){
+    var card=document.createElement('div');card.className='clipcard';card.id='cc-'+c.id;
+    var thumb=document.createElement('div');thumb.className='cc-thumb';
+    var vid=ytId(c.url);
+    if(c.status==='posted'&&vid){
+      var im=document.createElement('img');im.loading='lazy';im.alt='';im.src='https://i.ytimg.com/vi/'+vid+'/hqdefault.jpg';im.onerror=function(){im.style.display='none';};thumb.appendChild(im);
+      var play=document.createElement('span');play.className='cc-play';play.textContent='▶';thumb.appendChild(play);
+    }
+    if(c.duration){var dur=document.createElement('span');dur.className='cc-dur';dur.textContent=fmtDur(c.duration);thumb.appendChild(dur);}
+    if(c.selectable){var chk=document.createElement('input');chk.type='checkbox';chk.className='cc-check';chk.id='cc-chk-'+c.id;chk.checked=!!clipsData.selected[c.id];chk.addEventListener('change',function(){clipsData.selected[c.id]=chk.checked;syncSelection();});thumb.appendChild(chk);}
+    card.appendChild(thumb);
+    var body=document.createElement('div');body.className='cc-body';
+    var title=document.createElement('div');title.className='cc-title';title.textContent=c.title;body.appendChild(title);
+    var meta=document.createElement('div');meta.className='cc-meta';meta.textContent=(c.handle||plabel(c.platform))+' · from “'+(c.sourceTitle||'')+'”';body.appendChild(meta);
+    var st=c.status;var chip=document.createElement('span');chip.className='cc-chip chip-'+(st==='posted'?'posted':st==='failed'?'failed':st==='queued'?'queued':'banked');
+    chip.textContent=st==='posted'?'Posted':st==='failed'?'Failed':st==='queued'?'Queued':'Banked';body.appendChild(chip);
+    if(st==='failed'&&c.reason==='daily_limit'){var rr=document.createElement('div');rr.className='cc-meta';rr.textContent='Channel hit YouTube’s daily upload limit';body.appendChild(rr);}
+    card.appendChild(body);
+    var acts=document.createElement('div');acts.className='cc-actions';
+    if(st==='banked'||st==='queued')acts.appendChild(actBtn('Upload','primary',function(){uploadIds([c.id]);}));
+    else if(st==='failed')acts.appendChild(actBtn('Retry','primary',function(){uploadIds([c.id]);}));
+    acts.appendChild(actBtn('Edit','',function(){editClip(c);}));
+    if(st==='posted'&&c.url){var op=document.createElement('a');op.className='cc-btn';op.href=c.url;op.target='_blank';op.rel='noopener';op.textContent='Open';op.style.textDecoration='none';acts.appendChild(op);}
+    acts.appendChild(actBtn('Delete','danger',function(e){deleteClip(c,e.target);}));
+    card.appendChild(acts);
+    var note=document.createElement('div');note.className='cc-note';note.id='cc-note-'+c.id;note.hidden=true;card.appendChild(note);
+    if(capNoteIds[c.id]){note.hidden=false;note.appendChild(document.createTextNode('You’re at your 10 free clips — '));var lk=document.createElement('a');lk.href='#billing';lk.textContent='subscribe to post';lk.style.cssText='color:var(--coral-dk);font-weight:700;text-decoration:none';lk.addEventListener('click',function(ev){ev.preventDefault();showTab('billing');});note.appendChild(lk);note.appendChild(document.createTextNode('.'));}
     return card;
+  }
+  function uploadIds(ids){
+    if(!ids||!ids.length)return;
+    api('/api/clips','POST',{action:'upload',ids:ids}).then(function(res){
+      var r=(res.data&&res.data.results)||[];
+      r.forEach(function(x){if(x.result==='capped')capNoteIds[x.id]=true;else if(x.result==='queued')delete capNoteIds[x.id];});
+      clipsData.selected={};renderClips();
+    }).catch(function(){});
+  }
+  function editClip(c){
+    var card=document.getElementById('cc-'+c.id);if(!card)return;
+    var body=card.querySelector('.cc-body');var acts=card.querySelector('.cc-actions');if(acts)acts.style.display='none';
+    body.innerHTML='';
+    var ti=document.createElement('input');ti.className='cc-edit-title';ti.value=c.title||'';ti.placeholder='Title';
+    var de=document.createElement('textarea');de.className='cc-edit-desc';de.value=c.description||'';de.placeholder='Description (optional)';
+    var row=document.createElement('div');row.style.cssText='display:flex;gap:6px;margin-top:8px';
+    row.appendChild(actBtn('Save','primary',function(){api('/api/clips','POST',{action:'edit',id:c.id,title:ti.value,description:de.value}).then(function(){renderClips();});}));
+    row.appendChild(actBtn('Cancel','',function(){renderClips();}));
+    body.appendChild(ti);body.appendChild(de);body.appendChild(row);
+  }
+  function deleteClip(c,btn){
+    if(btn.dataset.confirm!=='1'){btn.dataset.confirm='1';btn.textContent='Confirm?';return;}
+    btn.textContent='Deleting…';btn.disabled=true;
+    api('/api/clips','POST',{action:'delete',id:c.id}).then(function(){delete clipsData.selected[c.id];renderClips();}).catch(function(){btn.disabled=false;btn.textContent='Delete';});
   }
   // Empty Clips tab: no connection -> wizard step 1 inline (same component +
   // connect process as the gate). Connected but no clips yet -> one plain line.

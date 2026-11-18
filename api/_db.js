@@ -80,6 +80,11 @@ function ensureSchema() {
       ALTER TABLE jobs  ADD COLUMN IF NOT EXISTS channel text;
       ALTER TABLE clips ADD COLUMN IF NOT EXISTS url text;
       ALTER TABLE clips ADD COLUMN IF NOT EXISTS posted_at timestamptz;
+      -- per-clip editable fields (the clip's own title/description, set by the
+      -- engine and editable from the Clips tab) + duration in seconds.
+      ALTER TABLE clips ADD COLUMN IF NOT EXISTS title text;
+      ALTER TABLE clips ADD COLUMN IF NOT EXISTS description text;
+      ALTER TABLE clips ADD COLUMN IF NOT EXISTS duration int;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS journey jsonb NOT NULL DEFAULT '{}'::jsonb;
       -- per-channel conversations: every message belongs to one conversation
       -- ('all' = All channels, or 'platform:handle' = a channel). Existing rows
