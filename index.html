@@ -940,8 +940,18 @@
   var clipsData={clips:[],selected:{},plan:'free',atCap:false};
   var capNoteIds={};
   function renderClips(){
+    var grid=$('#folderGrid'),bar=$('#clipsBar'),empty=$('#clipsEmpty'),controls=$('#clipsControls');if(!grid)return;
+    // No channel connected -> show only the connect prompt. Clips (if any) stay
+    // in the DB and reappear on reconnect; they just aren't shown with no channel
+    // to post to.
+    if(connectedCount()===0){
+      if(controls)controls.innerHTML='';
+      if(bar){bar.hidden=true;bar.innerHTML='';}
+      grid.innerHTML='';grid.className='';
+      renderClipsEmpty();
+      return;
+    }
     renderClipsControls();
-    var grid=$('#folderGrid'),bar=$('#clipsBar'),empty=$('#clipsEmpty');if(!grid)return;
     api('/api/clips').then(function(res){
       var d=res.data||{};var clips=d.clips||[];
       clipsData={clips:clips,selected:clipsData.selected||{},plan:d.plan,atCap:d.atCap};
