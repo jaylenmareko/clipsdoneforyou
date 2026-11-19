@@ -18,12 +18,7 @@ module.exports = async (req, res) => {
     if (!u) { res.status(401).json({ error: 'unauthorized' }); return; }
     const b = req.body || {};
 
-    // ---- account profile (Setup tab) ----
-    if (b.firstName !== undefined) {
-      const f = String(b.firstName).trim().slice(0, 80);
-      if (!f) { res.status(400).json({ error: 'bad_request' }); return; }
-      await q('UPDATE users SET first_name = $1 WHERE id = $2', [f, u.id]);
-    }
+    // ---- account profile (Setup tab) — email + password only, no name ----
     if (b.email !== undefined) {
       const em = String(b.email).trim().toLowerCase();
       if (!EMAIL_RE.test(em)) { res.status(400).json({ error: 'bad_email' }); return; }

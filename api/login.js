@@ -23,7 +23,7 @@ module.exports = async (req, res) => {
 
     const token = await createSession(user.id);
     setSessionCookie(res, token);
-    res.status(200).json({ ok: true, user: { id: user.id, firstName: user.first_name, email: user.email, plan: user.plan } });
+    res.status(200).json({ ok: true, user: { id: user.id, email: user.email, plan: user.plan } });
   } catch (e) {
     res.status(500).json({ error: 'server_error' });
   }

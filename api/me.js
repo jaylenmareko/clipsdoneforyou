@@ -47,7 +47,6 @@ module.exports = async (req, res) => {
       configured: true,
       user: {
         id: u.id,
-        firstName: u.first_name,
         email: u.email,
         plan: u.plan,
         paused: u.paused,

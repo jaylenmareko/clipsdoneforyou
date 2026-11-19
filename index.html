@@ -220,7 +220,7 @@
   .sb-acct-btn{display:block;width:100%;text-align:left;border:none;background:transparent;cursor:pointer;padding:6px 8px;border-radius:9px}
   .sb-acct-btn:hover{background:rgba(0,0,0,.045)}
   .sb-acct-name{font-weight:700;font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sb-acct-email{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sb-acct-email{font-size:13px;font-weight:600;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sb-acct-menu{position:absolute;left:12px;right:12px;bottom:62px;background:#fff;border:1px solid var(--line-2);border-radius:10px;box-shadow:var(--sh-md);padding:6px;display:none}
   .sb-acct-menu.open{display:block}
   .sb-acct-menu button{width:100%;text-align:left;border:none;background:transparent;font:inherit;font-size:13.5px;font-weight:650;color:var(--ink-2);padding:8px 10px;border-radius:8px;cursor:pointer}
@@ -510,7 +510,6 @@
     <div class="sb-account">
       <div class="sb-acct-menu" id="sbAcctMenu"><button data-signout>Sign out</button></div>
       <button class="sb-acct-btn" id="sbAcctBtn">
-        <div class="sb-acct-name" id="sbAcctName">&nbsp;</div>
         <div class="sb-acct-email" id="sbAcctEmail">&nbsp;</div>
       </button>
     </div>
@@ -574,7 +573,6 @@
       </div>
       <h3 id="authTitle">Create your account</h3>
       <p class="ps" id="authSub">10 posted clips on us. No card required.</p>
-      <div class="field" id="firstNameField"><label>First name</label><input id="authFirstName" type="text" placeholder="Jordan" autocomplete="given-name"></div>
       <div class="field"><label>Email</label><input id="authEmail" type="email" placeholder="you@email.com" autocomplete="email"></div>
       <div class="field"><label>Password</label><input id="authPassword" type="password" placeholder="••••••••" autocomplete="new-password"></div>
       <div id="authErr" class="auth-err" hidden></div>
@@ -667,7 +665,7 @@
   var authMode='signup';
   var authTitle=$('#authTitle'),authSub=$('#authSub'),authStepNo=$('#authStepNo'),
       authContinue=$('#authContinue'),authFoot=$('#authFoot'),authPassword=$('#authPassword'),
-      firstNameField=$('#firstNameField'),authErr=$('#authErr'),
+      authErr=$('#authErr'),
       doneTitle=$('#doneTitle'),doneSub=$('#doneSub');
   function setDone(t,s){doneTitle.textContent=t;doneSub.textContent=s;}
   function err(m){if(!m){authErr.hidden=true;authErr.textContent='';return;}authErr.hidden=false;authErr.textContent=m;}
@@ -675,7 +673,6 @@
     authMode=mode;err('');
     $$('[data-auth-mode]',modal).forEach(function(b){if(b.tagName==='BUTTON')b.classList.toggle('on',b.dataset.authMode===mode);});
     var login=(mode==='login');
-    firstNameField.hidden=login;
     authTitle.textContent=login?'Welcome back':'Create your account';
     authSub.textContent=login?'Log in to manage your clips.':'10 posted clips on us. No card required.';
     authStepNo.textContent=login?'Log in':'Step 1 of 3';
@@ -693,12 +690,12 @@
 
   // step 1 = real signup / login
   authContinue.addEventListener('click',function(){
-    var email=$('#authEmail').value.trim(),pass=$('#authPassword').value,first=$('#authFirstName').value.trim();
-    if(authMode==='signup'){if(!first||!email||pass.length<6){err('Enter your name, a valid email, and a 6+ character password.');return;}}
+    var email=$('#authEmail').value.trim(),pass=$('#authPassword').value;
+    if(authMode==='signup'){if(!email||pass.length<6){err('Enter a valid email and a 6+ character password.');return;}}
     else{if(!email||!pass){err('Enter your email and password.');return;}}
     authContinue.disabled=true;var label=authContinue.innerHTML;authContinue.textContent='…';
     var path=authMode==='signup'?'/api/signup':'/api/login';
-    var payload=authMode==='signup'?{firstName:first,email:email,password:pass}:{email:email,password:pass};
+    var payload={email:email,password:pass};
     api(path,'POST',payload).then(function(res){
       authContinue.disabled=false;authContinue.innerHTML=label;
       if(res.status===200){return refreshState().then(function(){if(authMode==='login'){closeModal();enterAppFlow(entryTab());}else{show(2);}});}
@@ -761,8 +758,7 @@
   document.addEventListener('click',function(){if(sbAcctMenu)sbAcctMenu.classList.remove('open');});
   function renderAccount(){
     if(!S||!S.user)return;
-    var n=$('#sbAcctName'),e=$('#sbAcctEmail');
-    if(n)n.textContent=S.user.firstName||'Account';
+    var e=$('#sbAcctEmail');
     if(e)e.textContent=S.user.email||'';
   }
 
@@ -1092,14 +1088,6 @@
     function err(box){var p=document.createElement('p');p.style.cssText='color:var(--coral-dk);font-size:12.5px;font-weight:600;margin:0';p.hidden=true;box.appendChild(p);return p;}
 
     root.appendChild(head('Account'));
-
-    // Name
-    var nf=field('Name','Your first name.');var nn=note(nf.bold);
-    var nrow=document.createElement('div');nrow.style.cssText='display:flex;gap:8px;align-items:center';
-    var ni=document.createElement('input');ni.className='setinput';ni.type='text';ni.value=u.firstName||'';ni.placeholder='First name';
-    var nsave=document.createElement('button');nsave.className='connbtn';nsave.textContent='Save';
-    nrow.appendChild(ni);nrow.appendChild(nsave);nf.row.appendChild(nrow);root.appendChild(nf.row);
-    nsave.addEventListener('click',function(){var v=ni.value.trim();if(!v||v===(u.firstName||''))return;nsave.disabled=true;nsave.textContent='Saving…';saveSetting({firstName:v},nn).then(function(){u.firstName=v;nsave.disabled=false;nsave.textContent='Save';}).catch(function(){nsave.disabled=false;nsave.textContent='Save';});});
 
     // Email
     var ef=field('Email','Used to sign in.');var en=note(ef.bold);var eerr=err(ef.box);
