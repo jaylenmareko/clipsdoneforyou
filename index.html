@@ -823,7 +823,7 @@
   }
   function startConnect(b){
     if(b.classList.contains('done')||!userId())return;
-    var inGate=!!b.closest('#gate');var msg=inGate?gateMsg:$('#clipsMsg');
+    var inGate=!!b.closest('#gate');var msg=inGate?gateMsg:(b.closest('[data-view=setup]')?$('#setupMsg'):$('#clipsMsg'));
     function showMsg(t){if(!msg)return;msg.textContent=t;if(!inGate)msg.hidden=!t;}
     if(inGate)ssSet('cdfy_gate_active','1'); // so the gate re-opens to show the result on return
     b.textContent='Opening…';showMsg('');
@@ -1112,6 +1112,33 @@
         if(res.data&&res.data.ok){cur.value='';nw.value='';pn2.classList.add('show');setTimeout(function(){pn2.classList.remove('show');},1600);}
         else{perr.hidden=false;perr.textContent=(res.data&&res.data.error==='wrong_password')?'Current password is incorrect.':(res.data&&res.data.error==='weak_password')?'New password must be at least 6 characters.':'Could not change password — try again.';}
       }).catch(function(){psave.disabled=false;psave.textContent='Change';perr.hidden=false;perr.textContent='Could not change password — try again.';});});
+
+    // Channels — connect / disconnect (posting settings for a channel live in Clips)
+    root.appendChild(head('Channels'));
+    var smsg=document.createElement('p');smsg.id='setupMsg';smsg.style.cssText='color:var(--mut);font-size:13px;margin:-4px 0 10px';smsg.hidden=true;root.appendChild(smsg);
+    SUPPORTED.forEach(function(p){
+      var c=connected[p],label=plabel(p);
+      var r=document.createElement('div');r.className='setrow';
+      var info=document.createElement('div');info.innerHTML='<b></b><p></p>';
+      info.querySelector('b').textContent=label;
+      info.querySelector('p').textContent=c?('Connected · '+(c.handle||'')):'Not connected';
+      r.appendChild(info);
+      if(c){
+        var db=document.createElement('button');db.className='connbtn';db.textContent='Disconnect';
+        db.addEventListener('click',function(){
+          confirmBox({title:'Disconnect '+label+'?',message:'This unlinks '+(c.handle||label)+'. Your clips stay.',confirmLabel:'Disconnect',onConfirm:function(){
+            db.textContent='Disconnecting…';db.disabled=true;if(smsg)smsg.hidden=true;
+            doDisconnect(function(e2){if(e2){db.disabled=false;db.textContent='Disconnect';if(smsg){smsg.hidden=false;smsg.textContent='Could not disconnect — please try again.';}}else{renderSetup();}});
+          }});
+        });
+        r.appendChild(db);
+      }else{
+        var cb=document.createElement('button');cb.className='connbtn';cb.setAttribute('data-platform',p);cb.textContent='Connect';
+        cb.addEventListener('click',function(){startConnect(cb);});
+        r.appendChild(cb);
+      }
+      root.appendChild(r);
+    });
   }
 
   // Clips tab controls: account defaults + one block per connected channel, plus
@@ -1195,28 +1222,8 @@
       var crn=document.createElement('span');crn.className='savednote';crn.textContent='Saved';crr.querySelector('b').appendChild(crn);crr.appendChild(cta);
       cta.addEventListener('blur',function(){if(cta.value===(cs.rules||''))return;saveSetting({platform:p,channelRules:cta.value},crn).then(function(){cs.rules=cta.value;});});
       body.appendChild(crr);
-
-      var dr=row('<div><b>Disconnect</b><p>Unlink '+h+'. Your clips stay.</p></div>');
-      var db=document.createElement('button');db.className='connbtn';db.textContent='Disconnect';dr.appendChild(db);
-      db.addEventListener('click',function(){
-        if(db.dataset.confirm!=='1'){db.dataset.confirm='1';db.textContent='Tap to confirm';return;}
-        db.textContent='Disconnecting…';db.disabled=true;var m=$('#clipsMsg');if(m)m.hidden=true;
-        doDisconnect(function(e2){if(e2){db.disabled=false;db.dataset.confirm='';db.textContent='Disconnect';if(m){m.hidden=false;m.textContent='Could not disconnect — please try again.';}}else{renderClips();}});
-      });
-      body.appendChild(dr);
     });
-
-    // ---- connect a channel ----
-    var unconnected=SUPPORTED.filter(function(p){return !connected[p];});
-    if(unconnected.length){
-      body.appendChild(head('Connect a channel'));
-      unconnected.forEach(function(p){
-        var nr2=row('<div><b>'+plabel(p)+'</b><p>Not connected</p></div>');
-        var cb=document.createElement('button');cb.className='connbtn';cb.setAttribute('data-platform',p);cb.textContent='Connect';
-        cb.addEventListener('click',function(){startConnect(cb);});
-        nr2.appendChild(cb);body.appendChild(nr2);
-      });
-    }
+    // (connecting/disconnecting channels lives in Setup → Channels)
   }
 
   // ---- billing ----
