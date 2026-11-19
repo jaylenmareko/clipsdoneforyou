@@ -602,6 +602,19 @@
   </div>
 </div>
 
+<!-- ---------- confirm dialog (Retry / Delete) ---------- -->
+<div class="modal" id="confirmModal" aria-hidden="true">
+  <div class="scrim" data-confirm-cancel></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Confirm" style="max-width:380px">
+    <h3 id="confirmTitle" style="margin-bottom:6px">Are you sure?</h3>
+    <p class="ps" id="confirmMsg" style="margin-bottom:18px"></p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="connbtn" id="confirmCancel">Cancel</button>
+      <button class="btn coral" id="confirmOk">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <!-- ---------- first-entry connect gate ---------- -->
 <div class="modal" id="gate" aria-hidden="true">
   <div class="scrim"></div>
@@ -968,6 +981,19 @@
     clipsData.clips.forEach(function(c){var cb=document.getElementById('cc-chk-'+c.id);if(cb)cb.checked=!!clipsData.selected[c.id];});
   }
   function actBtn(label,cls,fn){var b=document.createElement('button');b.className='cc-btn'+(cls?' '+cls:'');b.textContent=label;b.addEventListener('click',fn);return b;}
+  // reusable confirm popup (Retry / Delete) — reuses the app's modal styling
+  function confirmBox(opts){
+    var m=$('#confirmModal');if(!m){if(opts.onConfirm)opts.onConfirm();return;}
+    $('#confirmTitle').textContent=opts.title||'Are you sure?';
+    $('#confirmMsg').textContent=opts.message||'';
+    var ok=$('#confirmOk'),cancel=$('#confirmCancel');
+    ok.textContent=opts.confirmLabel||'Confirm';
+    function close(){m.classList.remove('open');m.setAttribute('aria-hidden','true');document.body.style.overflow='';ok.onclick=null;cancel.onclick=null;$$('[data-confirm-cancel]',m).forEach(function(e){e.onclick=null;});}
+    ok.onclick=function(){close();if(opts.onConfirm)opts.onConfirm();};
+    cancel.onclick=close;
+    $$('[data-confirm-cancel]',m).forEach(function(e){e.onclick=close;});
+    m.classList.add('open');m.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';
+  }
   // split "Title text #tag1 #tag2" into {text, tags} (same as the clip machine)
   function splitTitle(s){var raw=(s||'').trim();var i=raw.search(/(^|\s)#\S/);if(i<0)return{text:raw,tags:''};return{text:raw.slice(0,i).trim(),tags:raw.slice(i).trim()};}
   function clipCard(c){
@@ -999,10 +1025,10 @@
     if(st==='failed'&&c.reason==='daily_limit'){var rr=document.createElement('p');rr.className='cc-desc';rr.style.margin='-4px 0 10px';rr.textContent='Channel hit YouTube’s daily upload limit';meta.appendChild(rr);}
     var acts=document.createElement('div');acts.className='cc-actions';
     if(st==='banked'||st==='queued')acts.appendChild(actBtn('Upload','primary',function(){uploadIds([c.id]);}));
-    else if(st==='failed')acts.appendChild(actBtn('Retry','primary',function(){uploadIds([c.id]);}));
+    else if(st==='failed')acts.appendChild(actBtn('Retry','primary',function(){confirmBox({title:'Retry posting?',message:'I’ll try to post this clip to '+(c.handle||'your channel')+' again now.',confirmLabel:'Retry',onConfirm:function(){uploadIds([c.id]);}});}));
     acts.appendChild(actBtn('Edit','',function(){editClip(c);}));
     if(st==='posted'&&c.url){var op=document.createElement('a');op.className='cc-btn';op.href=c.url;op.target='_blank';op.rel='noopener';op.textContent='Open';op.style.textDecoration='none';acts.appendChild(op);}
-    acts.appendChild(actBtn('Delete','danger',function(e){deleteClip(c,e.target);}));
+    acts.appendChild(actBtn('Delete','danger',function(){confirmBox({title:'Delete this clip?',message:(st==='posted'?'This removes the clip and takes it down from your channel. ':'This permanently removes the clip. ')+'This can’t be undone.',confirmLabel:'Delete',onConfirm:function(){deleteClip(c);}});}));
     meta.appendChild(acts);
     var note=document.createElement('div');note.className='cc-note';note.id='cc-note-'+c.id;note.hidden=true;meta.appendChild(note);
     if(capNoteIds[c.id]){note.hidden=false;note.appendChild(document.createTextNode('You’re at your 10 free clips — '));var lk=document.createElement('a');lk.href='#billing';lk.textContent='subscribe to post';lk.style.cssText='color:var(--coral-dk);font-weight:700;text-decoration:none';lk.addEventListener('click',function(ev){ev.preventDefault();showTab('billing');});note.appendChild(lk);note.appendChild(document.createTextNode('.'));}
@@ -1028,10 +1054,8 @@
     row.appendChild(actBtn('Cancel','',function(){renderClips();}));
     meta.appendChild(ti);meta.appendChild(de);meta.appendChild(row);
   }
-  function deleteClip(c,btn){
-    if(btn.dataset.confirm!=='1'){btn.dataset.confirm='1';btn.textContent='Confirm?';return;}
-    btn.textContent='Deleting…';btn.disabled=true;
-    api('/api/clips','POST',{action:'delete',id:c.id}).then(function(){delete clipsData.selected[c.id];renderClips();}).catch(function(){btn.disabled=false;btn.textContent='Delete';});
+  function deleteClip(c){
+    api('/api/clips','POST',{action:'delete',id:c.id}).then(function(){delete clipsData.selected[c.id];renderClips();}).catch(function(){});
   }
   // Empty Clips tab: no connection -> wizard step 1 inline (same component +
   // connect process as the gate). Connected but no clips yet -> one plain line.
