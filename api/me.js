@@ -32,13 +32,20 @@ module.exports = async (req, res) => {
       } catch (e) { /* journey is best-effort; never block app state */ }
     }
 
-    const [cs, msgs, counts] = await Promise.all([
+    const [cs, msgs, counts, active] = await Promise.all([
       q('SELECT platform, handle, shorts_length AS "shortsLength", medium_form AS "mediumForm", rules, paused, daily_pace AS "dailyPace" FROM channel_settings WHERE user_id = $1', [u.id]),
       q('SELECT role, text, conversation FROM messages WHERE user_id = $1 ORDER BY id ASC LIMIT 400', [u.id]),
       q(`SELECT
            count(*) FILTER (WHERE status = 'posted') AS posted,
            count(*) FILTER (WHERE status = 'banked') AS banked
          FROM clips WHERE user_id = $1`, [u.id]),
+      // in-flight clip jobs: anything NOT in a terminal status is "working".
+      // Drives the chat progress indicator (#3). Status-agnostic on purpose —
+      // the engine's exact success/claim strings aren't assumed.
+      q(`SELECT channel FROM jobs
+         WHERE user_id = $1
+           AND type IN ('clip_request','first_batch','daily_batch','post_now')
+           AND lower(status) NOT IN ('error','failed','cancelled','canceled','done','complete','completed','posted','finished','skipped')`, [u.id]),
     ]);
 
     const row = counts.rows[0] || { posted: 0, banked: 0 };
@@ -61,6 +68,7 @@ module.exports = async (req, res) => {
       channelSettings: cs.rows,
       messages: msgs.rows,
       connected: connected,
+      activeJobs: active.rows.map((r) => ({ channel: r.channel || 'all' })),
     });
   } catch (e) {
     res.status(500).json({ error: 'server_error' });

@@ -56,6 +56,7 @@ async function handle(user, text, conv) {
     await q("INSERT INTO jobs(user_id, type, payload, priority) VALUES ($1,'first_batch',$2,100)", [user.id, JSON.stringify({ source: 'link', url, count: 3 }), ]);
     const j = Object.assign({}, user.journey); j.awaitingLinks = false;
     await q('UPDATE users SET journey=$1 WHERE id=$2', [JSON.stringify(j), user.id]);
+    changed.queued = conv;
     return { reply: "Got it — cutting your first clips from that video now. Your first ones post today. Paste more links anytime.", changed };
   }
   if (url) {
@@ -65,6 +66,7 @@ async function handle(user, text, conv) {
       else if (channels.length > 1) { return { reply: 'Which channel should I clip that for? ' + channels.map((c) => c.handle).join(', ') + ' — tell me in that channel, or name it here.', changed }; }
     }
     await q("INSERT INTO jobs(user_id, type, payload, channel) VALUES ($1,'clip_request',$2,$3)", [user.id, JSON.stringify({ url, platform }), targetConv]);
+    changed.queued = targetConv || conv;
     return { reply: 'Queued — I’ll clip that and post it' + (platform ? ' to ' + handleFor(platform) : '') + '. It’ll show up here as it goes live.', changed };
   }
 
@@ -114,13 +116,25 @@ async function handle(user, text, conv) {
   }
 
   // ---- status ----
-  if (/\b(status|how many|what'?s? connected|what is connected|where am i|summary|report)\b/.test(t)) {
-    const counts = await q("SELECT count(*) FILTER (WHERE status='posted')::int posted, count(*) FILTER (WHERE status='banked')::int banked FROM clips WHERE user_id=$1" + (isChannel ? " AND platform=$2" : ''), isChannel ? [user.id, convPlatform] : [user.id]);
-    const c = counts.rows[0] || { posted: 0, banked: 0 };
-    if (isChannel) return { reply: handleFor(convPlatform) + ': ' + c.posted + ' posted, ' + c.banked + ' banked.', changed };
+  if (/\b(status|how many|what'?s? connected|what is connected|where am i|summary|report|did (?:it|they|you) post|is it posted|anything post)\b/.test(t)) {
+    const counts = await q("SELECT count(*) FILTER (WHERE status='posted')::int posted, count(*) FILTER (WHERE status='banked')::int banked, count(*) FILTER (WHERE status='failed')::int failed FROM clips WHERE user_id=$1" + (isChannel ? " AND platform=$2" : ''), isChannel ? [user.id, convPlatform] : [user.id]);
+    const c = counts.rows[0] || { posted: 0, banked: 0, failed: 0 };
+    // failures must never be omitted — surface the plain-language reason too.
+    let failPart = '';
+    if (c.failed > 0) {
+      const errR = await q("SELECT channel, payload FROM jobs WHERE user_id=$1 AND status='error' ORDER BY id DESC LIMIT 20", [user.id]);
+      let reason = '';
+      for (const r of errR.rows) {
+        if (isChannel && (r.channel || '').split(':')[0] !== convPlatform) continue;
+        reason = (r.payload && r.payload.engine_error) || ''; if (reason) break;
+      }
+      const daily = /daily|uploadlimit|youtube_channel_daily_limit/i.test(reason);
+      failPart = ', ' + c.failed + ' failed (' + (daily ? 'YouTube daily upload limit — retrying automatically' : 'retrying automatically') + ')';
+    }
+    if (isChannel) return { reply: handleFor(convPlatform) + ': ' + c.posted + ' posted, ' + c.banked + ' banked' + failPart + '.', changed };
     const conn = await connectedCount(user.id);
     const freeLeft = Math.max(0, 10 - (user.free_clips_used || 0));
-    return { reply: (conn === null ? '' : conn + ' channel' + (conn === 1 ? '' : 's') + ' connected. ') + (user.plan === 'free' ? 'Free — ' + freeLeft + ' of 10 free clips left. ' : 'On ' + user.plan + '. ') + c.posted + ' posted, ' + c.banked + ' banked.', changed };
+    return { reply: (conn === null ? '' : conn + ' channel' + (conn === 1 ? '' : 's') + ' connected. ') + (user.plan === 'free' ? 'Free — ' + freeLeft + ' of 10 free clips left. ' : 'On ' + user.plan + '. ') + c.posted + ' posted, ' + c.banked + ' banked' + failPart + '.', changed };
   }
 
   // ---- honest fallback ----

@@ -83,7 +83,7 @@ async function reconcile(user) {
   j.started = j.started || {}; j.firstPosts = j.firstPosts || {}; j.lastDaily = j.lastDaily || {};
   const before = JSON.stringify(j);
 
-  const clipsR = await q("SELECT status, url, platform, posted_at FROM clips WHERE user_id=$1 ORDER BY posted_at ASC NULLS LAST, id ASC", [user.id]);
+  const clipsR = await q("SELECT status, url, platform, posted_at, created_at FROM clips WHERE user_id=$1 ORDER BY posted_at ASC NULLS LAST, id ASC", [user.id]);
   const csR = await q('SELECT platform, handle FROM channel_settings WHERE user_id=$1', [user.id]);
   const handleMap = {}; csR.rows.forEach((r) => { handleMap[r.platform] = r.handle; });
 
@@ -119,26 +119,47 @@ async function reconcile(user) {
   // (the one-time "what you can do here" note is now posted at connect in
   // start(), to the All channels thread — see there. No change-note here.)
 
-  // clips made but not posted (engine marks them 'failed' + auto-retries, e.g.
-  // the channel hit YouTube's daily upload cap) -> one honest note per channel.
-  j.retryNotice = j.retryNotice || {};
-  const failedByPlat = {};
-  clipsR.rows.filter((c) => c.status === 'failed').forEach((c) => { const p = c.platform || 'youtube'; failedByPlat[p] = (failedByPlat[p] || 0) + 1; });
-  if (Object.keys(failedByPlat).length) {
-    const errJobs = await q("SELECT channel, payload FROM jobs WHERE user_id=$1 AND status='error' ORDER BY id DESC", [user.id]);
-    const reasonByPlat = {};
-    errJobs.rows.forEach((r) => { const pf = (r.channel || '').split(':')[0]; if (pf && reasonByPlat[pf] === undefined) reasonByPlat[pf] = (r.payload && r.payload.engine_error) || ''; });
-    for (const p of Object.keys(failedByPlat)) {
-      if (j.firstPosts[p] || j.retryNotice[p]) continue;
-      const daily = /daily|uploadlimit|youtube_channel_daily_limit/i.test(reasonByPlat[p] || '');
-      await agent(user.id, chanKey(p, handleMap[p]), daily
-        ? "A few clips are ready, but this channel hit YouTube's daily upload limit — I'll post them automatically as soon as it resets."
-        : "A few clips are ready but couldn't post just yet — I'll keep trying; they'll go up automatically.");
-      j.retryNotice[p] = true;
+  // ---- per-job outcome: never leave a job silent after "Queued" ----
+  // Each clip-producing job ends terminal — 'error'/'failed' on failure, or a
+  // success status on completion (the exact string isn't assumed). We announce
+  // every job's outcome exactly once, keyed on its id, routed to its channel:
+  //   failure -> plain-language reason (e.g. daily upload limit, retrying);
+  //   success that posted -> the "live"/"posted today" messages above carry the
+  //     count + links, so we stay silent to avoid duplicates;
+  //   success that only banked -> a short "N ready and banked" note.
+  const CLIP_JOB_TYPES = ['clip_request', 'first_batch', 'daily_batch', 'post_now'];
+  const isFailure = (s) => /^(error|failed|cancell?ed)$/i.test(s || '');
+  const isTerminal = (s) => /^(error|failed|cancell?ed|done|complete|completed|posted|finished|skipped)$/i.test(s || '');
+  const jobsR = await q('SELECT id, type, status, channel, payload, created_at FROM jobs WHERE user_id=$1 AND type = ANY($2) ORDER BY id ASC', [user.id, CLIP_JOB_TYPES]);
+  const seeding = (j.announcedJobs === undefined || j.announcedJobs === null);
+  j.announcedJobs = j.announcedJobs || {};
+  for (const r of jobsR.rows) {
+    const id = String(r.id);
+    if (seeding) { if (isTerminal(r.status)) j.announcedJobs[id] = true; continue; } // first run: don't backfill old jobs
+    if (!isTerminal(r.status) || j.announcedJobs[id]) continue;
+    const p = (r.channel || '').split(':')[0] || (r.payload && r.payload.platform) || 'youtube';
+    const key = r.channel || chanKey(p, handleMap[p]);
+    if (isFailure(r.status)) {
+      const reason = (r.payload && r.payload.engine_error) || '';
+      const daily = /daily|uploadlimit|youtube_channel_daily_limit/i.test(reason);
+      const nFailed = clipsR.rows.filter((c) => (c.platform || 'youtube') === p && c.status === 'failed').length;
+      const some = nFailed > 0 ? (nFailed + (nFailed === 1 ? ' clip' : ' clips')) : 'A few clips';
+      await agent(user.id, key, daily
+        ? some + ' are ready, but ' + (handleMap[p] || 'this channel') + ' hit YouTube’s daily upload limit — I’ll post them automatically once it resets.'
+        : some + ' couldn’t post just yet — I’ll keep trying; they’ll go up automatically.');
+    } else {
+      // success: attribute this job's clips by time, announce only if banked-only
+      const since = r.created_at ? new Date(r.created_at).getTime() - 60000 : 0;
+      const mine = clipsR.rows.filter((c) => (c.platform || 'youtube') === p && new Date(c.created_at || 0).getTime() >= since);
+      const postedMine = mine.filter((c) => c.status === 'posted');
+      const bankedMine = mine.filter((c) => c.status === 'banked');
+      if (!postedMine.length && bankedMine.length) {
+        await agent(user.id, key, bankedMine.length + (bankedMine.length === 1 ? ' clip is' : ' clips are') + ' ready and banked — '
+          + (plan === 'free' ? 'they post as soon as you subscribe.' : 'they post as your pacing allows.'));
+      }
     }
+    j.announcedJobs[id] = true;
   }
-  // once a channel has posts live, clear its retry notice so a later failure re-notifies
-  Object.keys(j.firstPosts).forEach((p) => { if (j.retryNotice[p]) delete j.retryNotice[p]; });
 
   // ---- account-level events -> 'all' ----
   if (plan !== 'free' && j.subConfirmedPlan !== plan) {

@@ -257,6 +257,9 @@
   }
   .msg{margin-bottom:14px;font-size:15px;line-height:1.55;color:var(--ink-2);white-space:pre-line;word-break:break-word}
   .msg.me{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:10px 14px;margin-left:auto;max-width:85%;width:fit-content}
+  .msg.working{display:flex;align-items:center;gap:9px;color:var(--mut)}
+  .msg.working .spin{flex:none;width:15px;height:15px;border:2px solid var(--line-2);border-top-color:var(--coral);border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .connectcard{background:#fff;border:1px solid var(--line-2);border-radius:var(--r-lg);padding:20px;margin:18px 0;box-shadow:var(--sh-sm)}
   .connectcard b{font-size:16px}
   .connectcard p{color:var(--mut);font-size:14px;margin:4px 0 14px}
@@ -678,7 +681,9 @@
     $$('[data-auth-mode]',modal).forEach(function(b){if(b.tagName==='BUTTON')b.classList.toggle('on',b.dataset.authMode===mode);});
     var login=(mode==='login');
     authTitle.textContent=login?'Welcome back':'Create your account';
-    authSub.textContent=login?'Log in to manage your clips.':'10 posted clips on us. No card required.';
+    // login: no subtitle (removed). signup: keep the concrete offer line.
+    if(login){authSub.textContent='';authSub.style.display='none';}
+    else{authSub.textContent='10 posted clips on us. No card required.';authSub.style.display='';}
     authStepNo.textContent=login?'Log in':'Step 1 of 3';
     authContinue.innerHTML=login?'Log in <span class="ar">→</span>':'Continue <span class="ar">→</span>';
     authPassword.setAttribute('autocomplete',login?'current-password':'new-password');
@@ -780,7 +785,7 @@
   // materializes any new agent messages (first clips live, paywall, etc.) from
   // the real DB; re-pull state and re-render the thread + Billing.
   function syncJourney(){
-    refreshState().then(function(){if(S&&S.connected)connected=S.connected;renderChatHistory();renderBilling();}).catch(function(){});
+    refreshState().then(function(){if(S&&S.connected)connected=S.connected;renderChatHistory();renderBilling();if(activeJobsList().length)startJobPoll();}).catch(function(){});
   }
   // resolve real connection status BEFORE revealing, then gate if still zero
   function enterAppFlow(tab){
@@ -923,6 +928,27 @@
       dis.appendChild(b);
     }
   }
+  // ---- job progress (#3): a working state after "Queued" that resolves into
+  // the outcome message once the engine finishes. Driven by /api/me's
+  // activeJobs; `pendingConv` bridges the gap before the first sync.
+  var jobPollTimer=null,jobPollTicks=0,pendingConv=null;
+  function activeJobsList(){return (S&&S.activeJobs)||[];}
+  function hasWorking(conv){
+    if(pendingConv&&(pendingConv===conv||conv==='all'||pendingConv==='all'))return true;
+    return activeJobsList().some(function(jb){return jb.channel===conv||conv==='all'||jb.channel==='all';});
+  }
+  function startJobPoll(){
+    if(jobPollTimer)return;jobPollTicks=0;
+    jobPollTimer=setInterval(function(){
+      jobPollTicks++;
+      refreshState().then(function(){
+        pendingConv=null; // real activeJobs state is now authoritative
+        if(S&&S.connected)connected=S.connected;
+        renderChatHistory();renderBilling();
+        if(!activeJobsList().length||jobPollTicks>=40){clearInterval(jobPollTimer);jobPollTimer=null;}
+      }).catch(function(){if(jobPollTicks>=40){clearInterval(jobPollTimer);jobPollTimer=null;}});
+    },15000);
+  }
   function renderChatHistory(){
     renderConvBar();
     chatLog.innerHTML='';
@@ -934,6 +960,12 @@
     if(dis){
       if(needsAction)fillConvDisabled(dis,cv);
       dis.hidden=!needsAction;
+    }
+    if(!needsAction&&hasWorking(activeConv)){
+      var w=document.createElement('div');w.className='msg working';
+      var sp=document.createElement('span');sp.className='spin';
+      var tx=document.createElement('span');tx.textContent='Clipping… this takes a few minutes.';
+      w.appendChild(sp);w.appendChild(tx);chatLog.appendChild(w);
     }
     scrollChatBottom(false); // open a thread placed at the newest message
   }
@@ -951,7 +983,12 @@
     addMsg('me',t);chatInput.value='';scrollChatBottom(true);
     if(S){S.messages=S.messages||[];S.messages.push({role:'me',text:t,conversation:activeConv});}
     api('/api/chat','POST',{text:t,conversation:activeConv}).then(function(res){
-      if(res.status===200){addMsg('agent',res.data.reply);if(S)S.messages.push({role:'agent',text:res.data.reply,conversation:res.data.conversation||activeConv});applyChanged(res.data.changed);}
+      if(res.status===200){
+        addMsg('agent',res.data.reply);if(S)S.messages.push({role:'agent',text:res.data.reply,conversation:res.data.conversation||activeConv});applyChanged(res.data.changed);
+        // a queued clip job -> show the working state and poll until it resolves
+        var ch=res.data.changed||{};
+        if(ch.queued){pendingConv=(typeof ch.queued==='string')?ch.queued:activeConv;renderChatHistory();startJobPoll();return;}
+      }
       else if(res.data&&res.data.error==='not_configured')addMsg('agent','Accounts aren’t switched on yet.');
       else addMsg('agent','Something went wrong — please try again.');
       scrollChatBottom(true);
@@ -1033,7 +1070,11 @@
     var media=document.createElement('div');media.className='cc-media';
     var yt=(c.status==='posted')?ytId(c.url):null;
     if(c.videoUrl){
-      var vel=document.createElement('video');vel.src=c.videoUrl;vel.controls=true;vel.preload='metadata';if(c.thumbnailUrl)vel.poster=c.thumbnailUrl;media.appendChild(vel);
+      var vel=document.createElement('video');vel.src=c.videoUrl;vel.controls=true;vel.preload='metadata';vel.setAttribute('playsinline','');if(c.thumbnailUrl)vel.poster=c.thumbnailUrl;
+      // if the clip's mp4 fails to load, fall back to the thumbnail/placeholder
+      // frame instead of leaving a blank black box.
+      vel.onerror=function(){var fb=document.createElement('div');fb.className='cc-poster';if(c.thumbnailUrl){var fi=document.createElement('img');fi.alt='';fi.src=c.thumbnailUrl;fi.onerror=function(){fi.remove();};fb.appendChild(fi);}var fp=document.createElement('span');fp.className='pplay';fp.textContent='▶';fb.appendChild(fp);if(vel.parentNode)vel.parentNode.replaceChild(fb,vel);};
+      media.appendChild(vel);
     }else if(yt){
       var ifr=document.createElement('iframe');ifr.src='https://www.youtube.com/embed/'+yt;ifr.setAttribute('allow','accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture');ifr.setAttribute('allowfullscreen','');ifr.loading='lazy';media.appendChild(ifr);
     }else{
