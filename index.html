@@ -260,6 +260,17 @@
   .msg.working{display:flex;align-items:center;gap:9px;color:var(--mut)}
   .msg.working .spin{flex:none;width:15px;height:15px;border:2px solid var(--line-2);border-top-color:var(--coral);border-radius:50%;animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
+  /* source picker (#4): tappable recent videos from the connected channel */
+  .srcpick{margin:8px 0 16px}
+  .srcpick-h{font-size:12.5px;font-weight:700;color:var(--mut);margin:0 0 8px}
+  .srcpick-note{margin:8px 0 16px;font-size:13.5px;color:var(--mut)}
+  .srcrow{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .srccard{flex:0 0 150px;width:150px;text-align:left;background:#fff;border:1px solid var(--line-2);border-radius:12px;padding:0;overflow:hidden;cursor:pointer;font:inherit;transition:transform .15s var(--ease),box-shadow .15s var(--ease),border-color .15s var(--ease)}
+  .srccard:hover{transform:translateY(-2px);box-shadow:var(--sh-sm);border-color:var(--coral)}
+  .srcthumb{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+  .srcthumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .srcdur{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.8);color:#fff;font-size:11px;font-weight:700;padding:1px 5px;border-radius:4px;font-variant-numeric:tabular-nums}
+  .srctitle{padding:8px 9px;font-size:12.5px;font-weight:600;line-height:1.35;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .connectcard{background:#fff;border:1px solid var(--line-2);border-radius:var(--r-lg);padding:20px;margin:18px 0;box-shadow:var(--sh-sm)}
   .connectcard b{font-size:16px}
   .connectcard p{color:var(--mut);font-size:14px;margin:4px 0 14px}
@@ -967,7 +978,47 @@
       var tx=document.createElement('span');tx.textContent='Clipping… this takes a few minutes.';
       w.appendChild(sp);w.appendChild(tx);chatLog.appendChild(w);
     }
+    // source picker: connected channel + no clip job running -> tap a recent video to clip it
+    if(!needsAction&&!hasWorking(activeConv)&&connectedCount()>0)renderSourcePicker();
     scrollChatBottom(false); // open a thread placed at the newest message
+  }
+  // ---- source picker (#4) ----
+  function fmtDurHMS(s){s=Math.max(0,Math.floor(+s||0));var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),r=s%60;function p(n){return (n<10?'0':'')+n;}return h?(h+':'+p(m)+':'+p(r)):(m+':'+p(r));}
+  function sourceVideosFor(conv){
+    var all=(S&&S.sourceVideos)||[];
+    if(conv&&conv!=='all'&&conv.indexOf(':')>0)return all.filter(function(v){return v.channel===conv;});
+    return all;
+  }
+  function startClipFromVideo(v){
+    if(!userId()||!v||!v.videoId)return;
+    var url='https://www.youtube.com/watch?v='+v.videoId;
+    var conv=v.channel||activeConv;
+    if(conv!==activeConv)setConv(conv); // run the clip in that channel's thread so progress + outcome show there
+    sendText(url,conv);
+  }
+  function renderSourcePicker(){
+    var vids=sourceVideosFor(activeConv);
+    var status=(S&&S.sourceStatus)||'ready';
+    if(vids.length){
+      var wrap=document.createElement('div');wrap.className='srcpick';
+      var h=document.createElement('div');h.className='srcpick-h';h.textContent='Recent videos — tap one to clip it';wrap.appendChild(h);
+      var row=document.createElement('div');row.className='srcrow';
+      vids.forEach(function(v){
+        var card=document.createElement('button');card.className='srccard';card.type='button';
+        var th=document.createElement('div');th.className='srcthumb';
+        if(v.thumbnailUrl){var im=document.createElement('img');im.loading='lazy';im.alt='';im.src=v.thumbnailUrl;im.onerror=function(){im.remove();};th.appendChild(im);}
+        if(v.durationS){var d=document.createElement('span');d.className='srcdur';d.textContent=fmtDurHMS(v.durationS);th.appendChild(d);}
+        card.appendChild(th);
+        var tt=document.createElement('div');tt.className='srctitle';tt.textContent=v.title||'Untitled video';card.appendChild(tt);
+        card.addEventListener('click',function(){startClipFromVideo(v);});
+        row.appendChild(card);
+      });
+      wrap.appendChild(row);chatLog.appendChild(wrap);
+    }else if(status==='loading'){
+      var l=document.createElement('div');l.className='srcpick-note';l.textContent='Loading your recent videos…';chatLog.appendChild(l);
+    }else if(status==='error'){
+      var er=document.createElement('div');er.className='srcpick-note';er.textContent=((S&&S.sourceError)||'Could not load your recent videos.')+' You can still paste a link to clip any video.';chatLog.appendChild(er);
+    }
   }
   function setConv(key){activeConv=key;renderChatHistory();}
   function applyChanged(ch){
@@ -977,22 +1028,30 @@
     if(ch.rules!==undefined)S.user.rules=ch.rules;
     renderFreePill();
   }
-  function sendChat(){
-    var t=chatInput.value.trim();if(!t||!userId())return;
+  // one path for every chat message — typed text and a tapped source card both
+  // go through here, so a tap is exactly a pasted link (progress + outcome).
+  function sendText(text,conv){
+    if(!text||!userId())return;
     var acv=activeConvObj();if(acv.connected===false||acv.reauth===true)return;
-    addMsg('me',t);chatInput.value='';scrollChatBottom(true);
-    if(S){S.messages=S.messages||[];S.messages.push({role:'me',text:t,conversation:activeConv});}
-    api('/api/chat','POST',{text:t,conversation:activeConv}).then(function(res){
+    addMsg('me',text);scrollChatBottom(true);
+    if(S){S.messages=S.messages||[];S.messages.push({role:'me',text:text,conversation:conv});}
+    api('/api/chat','POST',{text:text,conversation:conv}).then(function(res){
       if(res.status===200){
-        addMsg('agent',res.data.reply);if(S)S.messages.push({role:'agent',text:res.data.reply,conversation:res.data.conversation||activeConv});applyChanged(res.data.changed);
+        addMsg('agent',res.data.reply);if(S)S.messages.push({role:'agent',text:res.data.reply,conversation:res.data.conversation||conv});applyChanged(res.data.changed);
         // a queued clip job -> show the working state and poll until it resolves
         var ch=res.data.changed||{};
-        if(ch.queued){pendingConv=(typeof ch.queued==='string')?ch.queued:activeConv;renderChatHistory();startJobPoll();return;}
+        if(ch.queued){pendingConv=(typeof ch.queued==='string')?ch.queued:conv;renderChatHistory();startJobPoll();return;}
       }
       else if(res.data&&res.data.error==='not_configured')addMsg('agent','Accounts aren’t switched on yet.');
       else addMsg('agent','Something went wrong — please try again.');
       scrollChatBottom(true);
     }).catch(function(){addMsg('agent','Network error — please try again.');scrollChatBottom(true);});
+  }
+  function sendChat(){
+    var t=chatInput.value.trim();if(!t||!userId())return;
+    var acv=activeConvObj();if(acv.connected===false||acv.reauth===true)return;
+    chatInput.value='';
+    sendText(t,activeConv);
   }
   var chatSendBtn=$('#chatSend');
   if(chatSendBtn)chatSendBtn.addEventListener('click',sendChat);

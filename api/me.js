@@ -49,6 +49,43 @@ module.exports = async (req, res) => {
     ]);
 
     const row = counts.rows[0] || { posted: 0, banked: 0 };
+
+    // ---- source picker (#4): the connected channel's recent long-form videos.
+    // The engine fills `source_videos` via a `list_sources` job. We read whatever
+    // rows exist, refresh in the background when they're missing or >24h stale,
+    // and never block chat on it. Best-effort — if the table isn't there yet we
+    // just show no picker.
+    let sourceVideos = [], sourceStatus = 'ready', sourceError = '';
+    if (provider.configured() && Object.keys(connected).length) {
+      try {
+        const sv = await q(`SELECT video_id, title, thumbnail_url, duration_s, views, published_at, channel, fetched_at
+                            FROM source_videos WHERE user_id=$1 ORDER BY published_at DESC NULLS LAST, fetched_at DESC`, [u.id]);
+        sourceVideos = sv.rows.map((r) => ({
+          videoId: r.video_id, title: r.title, thumbnailUrl: r.thumbnail_url,
+          durationS: r.duration_s, views: r.views != null ? Number(r.views) : null,
+          publishedAt: r.published_at, channel: r.channel,
+        }));
+        let newest = null;
+        sv.rows.forEach((r) => { if (r.fetched_at && (!newest || r.fetched_at > newest)) newest = r.fetched_at; });
+        const stale = !sv.rows.length || !newest || (Date.now() - new Date(newest).getTime() > 24 * 3600 * 1000);
+        const lj = await q("SELECT status, payload FROM jobs WHERE user_id=$1 AND type='list_sources' ORDER BY id DESC LIMIT 1", [u.id]);
+        const latest = lj.rows[0];
+        const running = latest && !/^(error|failed|cancell?ed|done|complete|completed|finished|skipped)$/i.test(latest.status);
+        const latestError = latest && /^(error|failed)$/i.test(latest.status);
+        if (stale && !running && !latestError) {
+          for (const [p, c] of Object.entries(connected)) {
+            if (!c) continue;
+            const key = p + ':' + (c.handle || p);
+            await q("INSERT INTO jobs(user_id, type, channel, payload, status) VALUES ($1,'list_sources',$2,'{}'::jsonb,'queued')", [u.id, key]);
+          }
+        }
+        if (sourceVideos.length) sourceStatus = 'ready';
+        else if (running || (stale && !latestError)) sourceStatus = 'loading';
+        else if (latestError) { sourceStatus = 'error'; sourceError = (latest.payload && latest.payload.engine_error) || 'Could not load your recent videos.'; }
+        else sourceStatus = 'loading';
+      } catch (e) { sourceVideos = []; sourceStatus = 'ready'; }
+    }
+
     res.status(200).json({
       authenticated: true,
       configured: true,
@@ -69,6 +106,9 @@ module.exports = async (req, res) => {
       messages: msgs.rows,
       connected: connected,
       activeJobs: active.rows.map((r) => ({ channel: r.channel || 'all' })),
+      sourceVideos: sourceVideos,
+      sourceStatus: sourceStatus,
+      sourceError: sourceError,
     });
   } catch (e) {
     res.status(500).json({ error: 'server_error' });
