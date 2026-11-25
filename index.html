@@ -243,7 +243,9 @@
   .chatcol{flex:1;min-height:0;position:relative;max-width:720px;width:100%;margin:0 auto}
   #chatLog{position:absolute;inset:0;overflow-y:auto;padding:28px 20px 98px}
   .composer,.convdisabled{position:absolute;left:16px;right:16px;bottom:16px;z-index:3}
-  .convdisabled{text-align:center;color:var(--mut-2);font-size:13.5px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r-pill);padding:13px;box-shadow:0 8px 24px rgba(16,24,40,.12),0 2px 6px rgba(16,24,40,.08)}
+  .convdisabled{text-align:center;color:var(--mut-2);font-size:13.5px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r-pill);padding:11px 13px;box-shadow:0 8px 24px rgba(16,24,40,.12),0 2px 6px rgba(16,24,40,.08)}
+  .convdisabled:not([hidden]){display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+  .convdisabled .cd-note{color:var(--mut-2)}
   @media(max-width:860px){
     .sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .22s var(--ease);box-shadow:4px 0 24px rgba(0,0,0,.14)}
     .sidebar.open{transform:none}
@@ -263,6 +265,8 @@
   .connrow .pl{font-weight:650;font-size:14.5px}
   .connbtn{border:1px solid var(--line-2);background:#fff;padding:7px 14px;border-radius:var(--r-pill);font:inherit;font-weight:700;font-size:13px;cursor:pointer}
   .connbtn.done{background:var(--ok);border-color:var(--ok);color:#fff}
+  .connbtn.primary{background:linear-gradient(180deg,#ff6b60,var(--coral));border-color:transparent;color:#fff;box-shadow:var(--sh-coral)}
+  .connbtn.primary:hover{box-shadow:0 14px 32px -8px rgba(255,90,78,.62)}
   .composer{display:flex;gap:8px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r-pill);padding:7px 7px 7px 8px;box-shadow:0 8px 24px rgba(16,24,40,.12),0 2px 6px rgba(16,24,40,.08)}
   .composer input{flex:1;border:none;font:inherit;font-size:14.5px;padding:8px 12px;background:transparent;color:var(--ink)}
   .composer input:focus{outline:none}
@@ -880,13 +884,13 @@
     Object.keys(connected||{}).forEach(function(p){
       var c=connected[p];if(!c)return;
       var key=p+':'+(c.handle||p);have[key]=true;
-      list.push({key:key,label:c.handle||p,connected:true});
+      list.push({key:key,label:c.handle||p,connected:true,platform:p,reauth:!!c.reauth});
     });
     var seen={};
     ((S&&S.messages)||[]).forEach(function(m){
       var cv=m.conversation||'all';
       if(cv==='all'||have[cv]||seen[cv])return;seen[cv]=true;
-      list.push({key:cv,label:cv.split(':').slice(1).join(':')||cv,connected:false});
+      list.push({key:cv,label:cv.split(':').slice(1).join(':')||cv,connected:false,platform:cv.split(':')[0]});
     });
     return list;
   }
@@ -902,14 +906,35 @@
       bar.appendChild(b);
     });
   }
+  // The disconnected/reauth note in the channel view — carries the primary
+  // Connect/Reconnect button so the user never has to hunt for Setup. Same
+  // shared startConnect flow as the gate and Setup.
+  function fillConvDisabled(dis,cv){
+    dis.innerHTML='';
+    var reauth=(cv.reauth===true);
+    var note=document.createElement('span');note.className='cd-note';
+    note.textContent=reauth?'This channel needs reconnecting to keep posting.':'This channel is disconnected.';
+    dis.appendChild(note);
+    var p=cv.platform||(cv.key&&cv.key.indexOf(':')>0?cv.key.split(':')[0]:'');
+    if(p){
+      var b=document.createElement('button');b.className='connbtn primary';b.setAttribute('data-platform',p);
+      b.textContent=reauth?'Reconnect':'Connect';
+      b.addEventListener('click',function(){startConnect(b);});
+      dis.appendChild(b);
+    }
+  }
   function renderChatHistory(){
     renderConvBar();
     chatLog.innerHTML='';
     if(S&&S.messages)S.messages.forEach(function(m){if((m.conversation||'all')===activeConv)addMsg(m.role,m.text);});
-    var disabled=(activeConvObj().connected===false);
+    var cv=activeConvObj();
+    var needsAction=(cv.connected===false)||(cv.reauth===true);
     var comp=$('#composer'),dis=$('#convDisabled');
-    if(comp)comp.style.display=disabled?'none':'';
-    if(dis)dis.hidden=!disabled;
+    if(comp)comp.style.display=needsAction?'none':'';
+    if(dis){
+      if(needsAction)fillConvDisabled(dis,cv);
+      dis.hidden=!needsAction;
+    }
     scrollChatBottom(false); // open a thread placed at the newest message
   }
   function setConv(key){activeConv=key;renderChatHistory();}
@@ -922,7 +947,7 @@
   }
   function sendChat(){
     var t=chatInput.value.trim();if(!t||!userId())return;
-    if(activeConvObj().connected===false)return;
+    var acv=activeConvObj();if(acv.connected===false||acv.reauth===true)return;
     addMsg('me',t);chatInput.value='';scrollChatBottom(true);
     if(S){S.messages=S.messages||[];S.messages.push({role:'me',text:t,conversation:activeConv});}
     api('/api/chat','POST',{text:t,conversation:activeConv}).then(function(res){
@@ -1128,13 +1153,13 @@
     root.appendChild(head('Channels'));
     var smsg=document.createElement('p');smsg.id='setupMsg';smsg.style.cssText='color:var(--mut);font-size:13px;margin:-4px 0 10px';smsg.hidden=true;root.appendChild(smsg);
     SUPPORTED.forEach(function(p){
-      var c=connected[p],label=plabel(p);
+      var c=connected[p],label=plabel(p),reauth=!!(c&&c.reauth);
       var r=document.createElement('div');r.className='setrow';
       var info=document.createElement('div');info.innerHTML='<b></b><p></p>';
       info.querySelector('b').textContent=label;
-      info.querySelector('p').textContent=c?('Connected · '+(c.handle||'')):'Not connected';
+      info.querySelector('p').textContent=reauth?('Reconnect needed · '+(c.handle||'')):(c?('Connected · '+(c.handle||'')):'Not connected');
       r.appendChild(info);
-      if(c){
+      if(c&&!reauth){
         var db=document.createElement('button');db.className='connbtn';db.textContent='Disconnect';
         db.addEventListener('click',function(){
           confirmBox({title:'Disconnect '+label+'?',message:'This unlinks '+(c.handle||label)+'. Your clips stay.',confirmLabel:'Disconnect',onConfirm:function(){
@@ -1144,7 +1169,8 @@
         });
         r.appendChild(db);
       }else{
-        var cb=document.createElement('button');cb.className='connbtn';cb.setAttribute('data-platform',p);cb.textContent='Connect';
+        // Not connected -> Connect; connected-but-expired -> Reconnect. Same flow.
+        var cb=document.createElement('button');cb.className='connbtn primary';cb.setAttribute('data-platform',p);cb.textContent=reauth?'Reconnect':'Connect';
         cb.addEventListener('click',function(){startConnect(cb);});
         r.appendChild(cb);
       }
