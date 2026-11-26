@@ -42,10 +42,7 @@ async function onUpgrade(userId, plan) {
 module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ error: 'method_not_allowed' }); return; }
   const secret = process.env.STRIPE_SECRET_KEY;
-  // Prefer the correctly-named var. The Vercel project also has a mis-typed
-  // 'STRIPE_WEBHOOK_SECREt' (lowercase final t) that can't be renamed in place;
-  // tolerate it until it's recreated correctly, then this fallback can be dropped.
-  const whSecret = process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECREt;
+  const whSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret || !whSecret || !configured()) { res.status(501).json({ error: 'not_configured' }); return; }
 
   const stripe = require('stripe')(secret);
