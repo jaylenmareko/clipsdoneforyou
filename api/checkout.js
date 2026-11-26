@@ -1,15 +1,13 @@
 // POST /api/checkout  { plan }  (plan: "Solo" | "Multi" | "Done-for-you")
-// Starts a real Stripe Checkout subscription session and returns its URL.
-// If Stripe isn't configured yet, returns not_configured — the UI says so
-// plainly rather than faking a plan change.
-const { q, configured } = require('./_db');
+// Starts a real Stripe Checkout session and returns its URL:
+//   - Solo / Multi -> subscription mode
+//   - Done-for-you -> payment mode (one-time $299)
+// metadata.user_id carries the site user's id so the webhook can match the
+// account. If Stripe isn't configured yet, returns not_configured — the UI
+// says so plainly rather than faking a plan change.
+const { configured } = require('./_db');
 const { getUser } = require('./_auth');
-
-const PRICE_ENV = {
-  Solo: 'STRIPE_PRICE_SOLO',
-  Multi: 'STRIPE_PRICE_MULTI',
-  'Done-for-you': 'STRIPE_PRICE_DFY',
-};
+const { PRICES, MODE } = require('./_billing');
 
 function siteOrigin(req) {
   const proto = (req.headers['x-forwarded-proto'] || 'https').split(',')[0];
@@ -23,9 +21,9 @@ module.exports = async (req, res) => {
 
   const secret = process.env.STRIPE_SECRET_KEY;
   const plan = req.body && req.body.plan;
-  const priceEnv = PRICE_ENV[plan];
-  const priceId = priceEnv ? process.env[priceEnv] : null;
-  if (!secret || !priceId) { res.status(501).json({ error: 'not_configured' }); return; }
+  const priceId = PRICES[plan];
+  const mode = MODE[plan];
+  if (!secret || !priceId || !mode) { res.status(501).json({ error: 'not_configured' }); return; }
 
   try {
     const user = await getUser(req);
@@ -34,13 +32,13 @@ module.exports = async (req, res) => {
     const stripe = require('stripe')(secret);
     const origin = siteOrigin(req);
     const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
+      mode,
       line_items: [{ price: priceId, quantity: 1 }],
       customer_email: user.email,
       client_reference_id: user.id,
-      metadata: { userId: user.id, plan },
-      success_url: `${origin}/?billing=success`,
-      cancel_url: `${origin}/?billing=cancelled`,
+      metadata: { user_id: user.id, plan },
+      success_url: `${origin}/?billing=success#billing`,
+      cancel_url: `${origin}/?billing=cancelled#billing`,
       allow_promotion_codes: true,
     });
     res.status(200).json({ url: session.url });

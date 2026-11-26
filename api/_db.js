@@ -92,6 +92,11 @@ function ensureSchema() {
       -- Clips tab can show a real video player per card like the clip machine.
       ALTER TABLE clips ADD COLUMN IF NOT EXISTS video_url text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS journey jsonb NOT NULL DEFAULT '{}'::jsonb;
+      -- Stripe billing (test pass): the active subscription, a one-time DFY
+      -- purchase flag, and a past-due flag set on a failed invoice.
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id text;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS dfy_purchased boolean NOT NULL DEFAULT false;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS past_due boolean NOT NULL DEFAULT false;
       -- per-channel conversations: every message belongs to one conversation
       -- ('all' = All channels, or 'platform:handle' = a channel). Existing rows
       -- migrate to 'all' via the default.

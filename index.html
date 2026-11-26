@@ -814,7 +814,7 @@
 
   function renderFreePill(){
     var el=$('#freePill');if(!el||!S||!S.user)return;
-    if(S.user.plan&&S.user.plan!=='free')el.textContent=S.user.plan+' plan active';
+    if(S.user.plan&&S.user.plan!=='free')el.textContent=planLabel(S.user.plan)+' plan active';
     else if(S.user.paused)el.textContent='Posting paused';
     else el.textContent=S.user.freeClipsLeft+' free clips left';
   }
@@ -1284,7 +1284,7 @@
   var ctrlsOpen=false;
   function renderClipsControls(){
     var root=$('#clipsControls');if(!root||!S||!S.user)return;
-    var u=S.user,multi=(u.plan==='Multi'||u.plan==='Done-for-you');
+    var u=S.user,multi=(u.plan==='multi'||u.plan==='dfy');
     var platforms=Object.keys(connected||{}).filter(function(p){return connected[p];});
     root.innerHTML='';
     function row(html){var d=document.createElement('div');d.className='setrow';d.innerHTML=html;return d;}
@@ -1364,23 +1364,29 @@
   }
 
   // ---- billing ----
+  // users.plan is stored lowercase ('free'/'solo'/'multi'/'dfy'); the plan
+  // buttons carry the display name ('Solo'/'Multi'/'Done-for-you').
+  var PLAN_KEY={Solo:'solo',Multi:'multi','Done-for-you':'dfy'};
+  var PLAN_LABEL={solo:'Solo',multi:'Multi',dfy:'Done-for-you',free:'Free'};
+  function planKey(dp){return PLAN_KEY[dp]||dp;}
+  function planLabel(p){return PLAN_LABEL[p]||p;}
   function renderBilling(){
     if(!S||!S.user)return;
     var plan=S.user.plan,state=$('#billState');
     var left=(S.user.freeClipsLeft!=null?S.user.freeClipsLeft:10);
     var banked=(S.user.bankedClips!=null?S.user.bankedClips:0);
     if(state){
-      if(plan!=='free')state.textContent='You are on the '+plan+' plan.';
+      if(plan!=='free')state.textContent='You are on the '+planLabel(plan)+' plan.';
       else if(left<=0)state.textContent='Free limit reached — 10 clips posted. '+(banked>0?banked+' more are made and waiting; subscribe to post them today.':'New clips keep banking; subscribe to post them.')+' Nothing is deleted.';
       else state.textContent='Free — '+left+' of 10 free clips left.'+(banked>0?' '+banked+' banked and waiting.':'')+' Posting pauses at 10 until you subscribe; clips stay banked.';
     }
     $$('.curtag',app).forEach(function(t){t.remove();});
     $$('[data-plan]',app).forEach(function(b){
-      if(b.dataset.plan===plan){var tag=document.createElement('span');tag.className='curtag';tag.textContent='Current plan';b.closest('.billplan').querySelector('b').appendChild(tag);}
+      if(planKey(b.dataset.plan)===plan){var tag=document.createElement('span');tag.className='curtag';tag.textContent='Current plan';b.closest('.billplan').querySelector('b').appendChild(tag);}
     });
   }
   $$('[data-plan]',app).forEach(function(b){b.addEventListener('click',function(){
-    if(b.dataset.plan===(S&&S.user&&S.user.plan))return;
+    if(planKey(b.dataset.plan)===(S&&S.user&&S.user.plan))return;
     var orig=b.textContent;b.textContent='Opening…';b.disabled=true;
     api('/api/checkout','POST',{plan:b.dataset.plan}).then(function(res){
       b.disabled=false;b.textContent=orig;
