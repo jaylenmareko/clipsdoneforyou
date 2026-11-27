@@ -86,6 +86,13 @@ module.exports = async (req, res) => {
       } catch (e) { sourceVideos = []; sourceStatus = 'ready'; }
     }
 
+    // ---- watched channels (engine resolves + polls; site only writes rows) ----
+    let watches = [];
+    try {
+      const w = await q('SELECT source, channel_id, handle, title, active FROM watch_channels WHERE user_id=$1 AND active=true ORDER BY created_at ASC', [u.id]);
+      watches = w.rows.map((r) => ({ source: r.source, channelId: r.channel_id, handle: r.handle, title: r.title }));
+    } catch (e) { watches = []; }
+
     res.status(200).json({
       authenticated: true,
       configured: true,
@@ -109,6 +116,7 @@ module.exports = async (req, res) => {
       sourceVideos: sourceVideos,
       sourceStatus: sourceStatus,
       sourceError: sourceError,
+      watches: watches,
     });
   } catch (e) {
     res.status(500).json({ error: 'server_error' });

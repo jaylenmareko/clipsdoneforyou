@@ -67,6 +67,11 @@ module.exports = async (req, res) => {
       }
     }
 
+    // ---- unwatch a channel (Setup) — site only flips active=false; engine stops polling ----
+    if (b.unwatch !== undefined) {
+      await q('UPDATE watch_channels SET active=false WHERE user_id=$1 AND source=$2', [u.id, String(b.unwatch)]);
+    }
+
     res.status(200).json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'server_error' });

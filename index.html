@@ -1276,6 +1276,28 @@
       }
       root.appendChild(r);
     });
+
+    // ---- Watching: channels whose new long uploads get auto-clipped (engine-owned) ----
+    var watches=(S&&S.watches)||[];
+    root.appendChild(head('Watching'));
+    var wsub=document.createElement('p');wsub.style.cssText='color:var(--mut);font-size:13px;margin:-4px 0 10px';
+    wsub.textContent=watches.length?'New long uploads from these channels get clipped automatically, up to your daily pace.':'Not watching any channels. In chat, say “watch @channel” (or paste a channel link) to auto-clip its new uploads.';
+    root.appendChild(wsub);
+    watches.forEach(function(w){
+      var wr=document.createElement('div');wr.className='setrow';
+      var wi=document.createElement('div');wi.innerHTML='<b></b><p></p>';
+      var resolved=!!(w.title||w.handle);
+      wi.querySelector('b').textContent=w.title||w.handle||w.source;
+      wi.querySelector('p').textContent=resolved?w.source:'Resolving channel…';
+      wr.appendChild(wi);
+      var ub=document.createElement('button');ub.className='connbtn';ub.textContent='Unwatch';
+      ub.addEventListener('click',function(){
+        ub.disabled=true;ub.textContent='…';
+        api('/api/settings','POST',{unwatch:w.source}).then(function(){refreshState().then(function(){renderSetup();});}).catch(function(){ub.disabled=false;ub.textContent='Unwatch';});
+      });
+      wr.appendChild(ub);
+      root.appendChild(wr);
+    });
   }
 
   // Clips tab controls: account defaults + one block per connected channel, plus

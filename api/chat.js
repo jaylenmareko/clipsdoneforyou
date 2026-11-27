@@ -38,6 +38,15 @@ async function connectedCount(username) {
   } catch (e) { return null; }
 }
 
+// ---- channel-watching helpers (the engine resolves + polls; site writes rows) ----
+function watchLabel(r) { return String(r.title || r.handle || r.source || '').trim(); }
+function listLine(rows) { return 'You’re watching: ' + rows.map(watchLabel).join(', ') + '.'; }
+async function watchSummary(userId) {
+  const rows = (await q('SELECT source, handle, title FROM watch_channels WHERE user_id=$1 AND active=true ORDER BY created_at ASC', [userId])).rows;
+  if (!rows.length) return 'You’re not watching any channels yet. Say “watch @channel” (or paste a channel link) and I’ll clip new long uploads as they post.';
+  return 'You’re watching ' + rows.length + (rows.length === 1 ? ' channel' : ' channels') + ': ' + rows.map(watchLabel).join(', ') + '. I clip their new long uploads automatically, up to your daily pace.';
+}
+
 async function handle(user, text, conv) {
   const t = text.toLowerCase();
   const changed = {};
@@ -49,6 +58,36 @@ async function handle(user, text, conv) {
   const chR = await q('SELECT platform, handle FROM channel_settings WHERE user_id=$1 AND handle IS NOT NULL', [user.id]);
   const channels = chR.rows;
   const handleFor = (p) => (channels.find((c) => c.platform === p) || {}).handle || p;
+
+  // ---- channel watching (engine resolves the channel + polls ~30min and
+  // auto-queues clips for new long uploads; the site only writes rows). Checked
+  // before the clip-URL block so "watch this channel: <link>" watches, not clips.
+  if (/\bwhat\b[^?]*\bwatch/i.test(t) || /\b(?:am i|are we)\s+watching\b/i.test(t) || /\blist\b[^?]*\bwatch/i.test(t)) {
+    return { reply: await watchSummary(user.id), changed };
+  }
+  if (/^\s*(?:stop\s+watching|unwatch)\b/i.test(t)) {
+    const m = text.match(/(?:stop\s+watching|unwatch)\s*:?\s*(.*)$/i);
+    const src = (m && m[1] || '').trim();
+    const actives = (await q('SELECT source, handle, title FROM watch_channels WHERE user_id=$1 AND active=true ORDER BY created_at ASC', [user.id])).rows;
+    if (!actives.length) return { reply: 'You’re not watching any channels right now.', changed };
+    if (src) {
+      const r = await q('UPDATE watch_channels SET active=false WHERE user_id=$1 AND active=true AND (source ILIKE $2 OR handle ILIKE $2 OR title ILIKE $2) RETURNING source, handle, title', [user.id, '%' + src + '%']);
+      if (!r.rows.length) return { reply: 'I couldn’t find an active watch matching “' + src + '”. ' + listLine(actives), changed };
+      return { reply: 'Stopped watching ' + watchLabel(r.rows[0]) + ' — no new uploads from it will be clipped.', changed };
+    }
+    if (actives.length === 1) {
+      await q('UPDATE watch_channels SET active=false WHERE user_id=$1 AND active=true', [user.id]);
+      return { reply: 'Stopped watching ' + watchLabel(actives[0]) + '.', changed };
+    }
+    return { reply: 'Which one should I stop watching? ' + listLine(actives), changed };
+  }
+  if (/^\s*watch\b/i.test(t)) {
+    const m = text.match(/^\s*watch(?:\s+this\s+channel)?\s*:?\s*(.*)$/i);
+    const source = (m && m[1] || '').trim();
+    if (!source) return { reply: 'Tell me which channel — paste a channel link or @handle, like “watch @somechannel”.', changed };
+    await q('INSERT INTO watch_channels(user_id, source, active) VALUES ($1,$2,true) ON CONFLICT (user_id, source) DO UPDATE SET active=true', [user.id, source.slice(0, 500)]);
+    return { reply: 'Watching ' + source + ' — I’ll clip new long uploads automatically as they post, up to your daily pace.', changed };
+  }
 
   // ---- clip request (any URL) ----
   const url = (text.match(/https?:\/\/\S+/) || [])[0];
@@ -134,11 +173,13 @@ async function handle(user, text, conv) {
     if (isChannel) return { reply: handleFor(convPlatform) + ': ' + c.posted + ' posted, ' + c.banked + ' banked' + failPart + '.', changed };
     const conn = await connectedCount(user.id);
     const freeLeft = Math.max(0, 10 - (user.free_clips_used || 0));
-    return { reply: (conn === null ? '' : conn + ' channel' + (conn === 1 ? '' : 's') + ' connected. ') + (user.plan === 'free' ? 'Free — ' + freeLeft + ' of 10 free clips left. ' : 'On ' + user.plan + '. ') + c.posted + ' posted, ' + c.banked + ' banked' + failPart + '.', changed };
+    const watches = (await q('SELECT source, handle, title FROM watch_channels WHERE user_id=$1 AND active=true ORDER BY created_at ASC', [user.id])).rows;
+    const watchPart = watches.length ? ' Watching ' + watches.length + (watches.length === 1 ? ' channel' : ' channels') + ' (' + watches.map(watchLabel).join(', ') + ').' : '';
+    return { reply: (conn === null ? '' : conn + ' channel' + (conn === 1 ? '' : 's') + ' connected. ') + (user.plan === 'free' ? 'Free — ' + freeLeft + ' of 10 free clips left. ' : 'On ' + user.plan + '. ') + c.posted + ' posted, ' + c.banked + ' banked' + failPart + '.' + watchPart, changed };
   }
 
   // ---- honest fallback ----
-  return { reply: 'I can change clip length, set daily pace, pause/resume, save a rule for ' + scope + ', give a status, or queue a video (paste the link). I couldn’t action that one — try one of those.', changed };
+  return { reply: 'I can change clip length, set daily pace, pause/resume, save a rule for ' + scope + ', watch a channel for new uploads (give me a channel link or @handle), give a status, or queue a video (paste the link). I couldn’t action that one — try one of those.', changed };
 }
 
 module.exports = async (req, res) => {
