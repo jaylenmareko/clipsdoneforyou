@@ -315,6 +315,18 @@
   .clipbar label{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:650;color:var(--ink-2);cursor:pointer}
   .clipbar .selcount{color:var(--mut);font-size:13px}
   .clipgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:16px}
+  /* Clips grouped by source video (accordion) — cards inside are unchanged */
+  .clipgroups{display:flex;flex-direction:column;gap:12px}
+  .clipgroup{border:1px solid var(--line);border-radius:var(--r-md);background:#fff;overflow:hidden;box-shadow:var(--sh-sm)}
+  .cg-head{width:100%;display:flex;align-items:center;gap:12px;padding:13px 16px;background:#fff;border:0;cursor:pointer;font:inherit;text-align:left;transition:background .15s var(--ease)}
+  .cg-head:hover{background:var(--soft)}
+  .cg-chev{flex:none;color:var(--mut-2);font-size:12px;transition:transform .2s var(--ease)}
+  .clipgroup.open .cg-chev{transform:rotate(90deg)}
+  .cg-text{flex:1 1 auto;min-width:0}
+  .cg-title{font-weight:700;font-size:14.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cg-meta{margin-top:2px;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+  .cg-body{padding:0 16px 16px}
+  .clipgroup:not(.open) .cg-body{display:none}
   .clipcard{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-sm);overflow:hidden;display:flex;flex-direction:column}
   .cc-media{position:relative;background:#000}
   .cc-media video,.cc-media iframe{width:100%;display:block;background:#000;aspect-ratio:9/16;object-fit:contain;border:0}
@@ -1077,15 +1089,51 @@
     renderClipsControls();
     api('/api/clips').then(function(res){
       var d=res.data||{};var clips=d.clips||[];
-      clipsData={clips:clips,selected:clipsData.selected||{},plan:d.plan,atCap:d.atCap};
+      clipsData={clips:clips,selected:clipsData.selected||{},openGroups:clipsData.openGroups,plan:d.plan,atCap:d.atCap};
       grid.innerHTML='';grid.className='';
       if(bar){bar.hidden=true;bar.innerHTML='';}
       if(!clips.length){renderClipsEmpty();return;}
-      empty.hidden=true;grid.className='clipgrid';
+      empty.hidden=true;grid.className='clipgroups';
       renderClipBar();
-      clips.forEach(function(c){grid.appendChild(clipCard(c));});
+      renderClipGroups(grid,clips);
       syncSelection();
     }).catch(function(){grid.innerHTML='';grid.className='';renderClipsEmpty();});
+  }
+  // Group clips by source video into collapsible accordion sections. Cards are
+  // built into the DOM for every group (hidden by CSS when collapsed), so
+  // selection state and Select-all survive collapse/expand and re-renders.
+  var OTHER_KEY='__other__';
+  function renderClipGroups(grid,clips){
+    var order=[],map={};
+    clips.forEach(function(c){ // clips arrive newest-first
+      var raw=(c.sourceTitle||'').trim();var key=raw||OTHER_KEY;
+      if(!map[key]){map[key]={key:key,title:raw||'Other clips',isOther:!raw,clips:[],newest:0,counts:{posted:0,banked:0,failed:0,queued:0}};order.push(key);}
+      var g=map[key];g.clips.push(c);
+      var ts=new Date(c.createdAt||c.postedAt||0).getTime()||0;if(ts>g.newest)g.newest=ts;
+      if(g.counts[c.status]!==undefined)g.counts[c.status]++;
+    });
+    var groups=order.map(function(k){return map[k];});
+    groups.sort(function(a,b){if(a.isOther!==b.isOther)return a.isOther?1:-1;return b.newest-a.newest;}); // newest group first, Other last
+    var mostRecentKey=null,mx=-1;groups.forEach(function(g){if(g.newest>mx){mx=g.newest;mostRecentKey=g.key;}});
+    var og=clipsData.openGroups||(clipsData.openGroups={});
+    groups.forEach(function(g){
+      var open=(g.key in og)?og[g.key]:(g.key===mostRecentKey); // most-recent open by default; user toggles persist
+      var sec=document.createElement('div');sec.className='clipgroup'+(open?' open':'');
+      var hd=document.createElement('button');hd.type='button';hd.className='cg-head';
+      var chev=document.createElement('span');chev.className='cg-chev';chev.textContent='▸';
+      var txt=document.createElement('div');txt.className='cg-text';
+      var ti=document.createElement('div');ti.className='cg-title';ti.textContent=g.title;
+      var meta=document.createElement('div');meta.className='cg-meta';
+      var parts=[g.clips.length+(g.clips.length===1?' clip':' clips')];
+      [['posted','posted'],['banked','banked'],['failed','failed'],['queued','queued']].forEach(function(s){if(g.counts[s[0]])parts.push(g.counts[s[0]]+' '+s[1]);});
+      var dt=clipDate(g.newest);if(dt)parts.push(dt);
+      meta.textContent=parts.join(' · ');
+      txt.appendChild(ti);txt.appendChild(meta);hd.appendChild(chev);hd.appendChild(txt);
+      var body=document.createElement('div');body.className='cg-body clipgrid';
+      g.clips.forEach(function(c){body.appendChild(clipCard(c));});
+      hd.addEventListener('click',function(){var nowOpen=!sec.classList.contains('open');sec.classList.toggle('open',nowOpen);clipsData.openGroups[g.key]=nowOpen;});
+      sec.appendChild(hd);sec.appendChild(body);grid.appendChild(sec);
+    });
   }
   function clipDate(s){if(!s)return '';try{return new Date(s).toLocaleDateString(undefined,{month:'short',day:'numeric'});}catch(e){return '';}}
   function ytId(u){if(!u)return null;var m=u.match(/(?:shorts\/|watch\?v=|youtu\.be\/|embed\/|\/v\/)([A-Za-z0-9_-]{6,})/);return m?m[1]:null;}
