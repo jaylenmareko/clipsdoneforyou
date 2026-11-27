@@ -127,7 +127,7 @@ async function reconcile(user) {
   //   success that posted -> the "live"/"posted today" messages above carry the
   //     count + links, so we stay silent to avoid duplicates;
   //   success that only banked -> a short "N ready and banked" note.
-  const CLIP_JOB_TYPES = ['clip_request', 'first_batch', 'daily_batch', 'post_now'];
+  const CLIP_JOB_TYPES = ['clip_request', 'first_batch', 'daily_batch', 'post_now', 'reupload'];
   const isFailure = (s) => /^(error|failed|cancell?ed)$/i.test(s || '');
   const isTerminal = (s) => /^(error|failed|cancell?ed|done|complete|completed|posted|finished|skipped)$/i.test(s || '');
   const jobsR = await q('SELECT id, type, status, channel, payload, created_at FROM jobs WHERE user_id=$1 AND type = ANY($2) ORDER BY id ASC', [user.id, CLIP_JOB_TYPES]);

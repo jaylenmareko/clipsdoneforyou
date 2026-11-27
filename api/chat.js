@@ -89,6 +89,21 @@ async function handle(user, text, conv) {
     return { reply: 'Watching ' + source + ' — I’ll clip new long uploads automatically as they post, up to your daily pace.', changed };
   }
 
+  // ---- verbatim reupload (engine downloads untouched + copies title/desc/tags/
+  // thumbnail exactly; delivery follows plan rules). YouTube-only in v1. Checked
+  // before the clip-URL block so "reupload <link>" never becomes a clip. ----
+  if (/\b(re-?upload|re-?post)\b/i.test(t) || /\bpost\b[^.]*\bexact/i.test(t) || /\b(as[- ]?is|verbatim)\b/i.test(t) || /\bcopy\b[^.]*\b(as[- ]?is|exact|verbatim)/i.test(t)) {
+    const rurl = (text.match(/https?:\/\/\S+/) || [])[0];
+    const isYT = rurl && /(?:youtube\.com|youtu\.be)/i.test(rurl);
+    const yt = channels.find((c) => c.platform === 'youtube');
+    if (!rurl) return { reply: 'Paste the YouTube link you want reuploaded exactly as-is.', changed };
+    if (!isYT) return { reply: 'That isn’t a YouTube link — verbatim reuploads are YouTube-only for now. Want me to clip it instead? Paste it and say “clip this”.', changed };
+    if (!yt) return { reply: 'You don’t have a YouTube channel connected yet — connect one in Setup first. Or paste a link and I’ll clip it into shorts instead.', changed };
+    await q("INSERT INTO jobs(user_id, type, payload, channel, priority) VALUES ($1,'reupload',$2,$3,10)", [user.id, JSON.stringify({ url: rurl }), 'youtube:' + yt.handle]);
+    changed.queued = 'youtube:' + yt.handle;
+    return { reply: 'Reuploading that exactly as-is — same video, title, description, tags, and thumbnail — to ' + yt.handle + '. It’ll show up in your Clips when it’s done.', changed };
+  }
+
   // ---- clip request (any URL) ----
   const url = (text.match(/https?:\/\/\S+/) || [])[0];
   if (url && user.journey && user.journey.awaitingLinks && !isChannel) {
@@ -179,7 +194,7 @@ async function handle(user, text, conv) {
   }
 
   // ---- honest fallback ----
-  return { reply: 'I can change clip length, set daily pace, pause/resume, save a rule for ' + scope + ', watch a channel for new uploads (give me a channel link or @handle), give a status, or queue a video (paste the link). I couldn’t action that one — try one of those.', changed };
+  return { reply: 'I can change clip length, set daily pace, pause/resume, save a rule for ' + scope + ', watch a channel for new uploads (give me a channel link or @handle), reupload a video exactly as-is (just say “reupload” and paste the link), give a status, or queue a video (paste the link). I couldn’t action that one — try one of those.', changed };
 }
 
 module.exports = async (req, res) => {

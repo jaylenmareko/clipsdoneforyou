@@ -44,7 +44,7 @@ module.exports = async (req, res) => {
       // the engine's exact success/claim strings aren't assumed.
       q(`SELECT channel FROM jobs
          WHERE user_id = $1
-           AND type IN ('clip_request','first_batch','daily_batch','post_now')
+           AND type IN ('clip_request','first_batch','daily_batch','post_now','reupload')
            AND lower(status) NOT IN ('error','failed','cancelled','canceled','done','complete','completed','posted','finished','skipped')`, [u.id]),
     ]);
 
