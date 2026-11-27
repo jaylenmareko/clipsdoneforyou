@@ -2,14 +2,15 @@
 // checkout.js and stripe/webhook.js. Underscore-prefixed so it is a helper,
 // not a Vercel serverless function (doesn't count toward the Hobby cap).
 //
-// These are the TEST-MODE prices that already exist in the ClipsDoneForYou
-// Stripe sandbox — we never create prices here. For production, override via
-// env (STRIPE_PRICE_SOLO / _MULTI / _DFY) without touching this file.
+// These are the LIVE prices in the ClipsDoneForYou Stripe account (created by
+// scripts/create-live-billing.js) — we never create prices here. Still
+// overridable via env (STRIPE_PRICE_SOLO / _MULTI / _DFY) without touching this
+// file; e.g. point back at the test prices in a test deployment.
 
 const PRICES = {
-  Solo: process.env.STRIPE_PRICE_SOLO || 'price_1Ug9ThBLWv266p5wcjm5EurM',       // $19/mo recurring
-  Multi: process.env.STRIPE_PRICE_MULTI || 'price_1Ug9TqBLWv266p5wsDX9mjGl',     // $39/mo recurring
-  'Done-for-you': process.env.STRIPE_PRICE_DFY || 'price_1Ug9TuBLWv266p5wBAUDLk4M', // $299 one-time
+  Solo: process.env.STRIPE_PRICE_SOLO || 'price_1UgCxPBLWv266p5wrHDcGzwT',       // $19/mo recurring (live)
+  Multi: process.env.STRIPE_PRICE_MULTI || 'price_1UgCxQBLWv266p5wMMZfGslI',     // $39/mo recurring (live)
+  'Done-for-you': process.env.STRIPE_PRICE_DFY || 'price_1UgCxQBLWv266p5wxQawzrnI', // $299 one-time (live)
 };
 
 // Checkout mode per plan: Solo/Multi are subscriptions, DFY is a one-time payment.
