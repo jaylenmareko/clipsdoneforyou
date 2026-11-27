@@ -12,6 +12,8 @@
   :root{
     --ink:#0d0f14; --ink-2:#1b202a; --mut:#5e6672; --mut-2:#8b929d;
     --coral:#ff5a4e; --coral-dk:#e8463b; --coral-soft:#fff1ef;
+    /* brand coral deepened so WHITE text clears WCAG AA 4.5:1 (full coral is only ~3:1); used for the user's chat bubble */
+    --accent-strong:#cf3729;
     --bg:#ffffff; --soft:#f7f8fa; --soft-2:#fbfcfd; --line:#ebeef2; --line-2:#e0e4ea; --ok:#12a06b;
     --r-sm:12px; --r-md:16px; --r-lg:22px; --r-pill:999px;
     --sh-sm:0 1px 2px rgba(13,15,20,.05), 0 1px 1px rgba(13,15,20,.04);
@@ -256,7 +258,7 @@
     .aview[data-view=chat] #chatLog{padding-top:60px}
   }
   .msg{margin-bottom:14px;font-size:15px;line-height:1.55;color:var(--ink-2);white-space:pre-line;word-break:break-word}
-  .msg.me{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:10px 14px;margin-left:auto;max-width:85%;width:fit-content}
+  .msg.me{background:var(--accent-strong);color:#fff;border:1px solid var(--accent-strong);border-radius:16px;padding:10px 14px;margin-left:auto;max-width:85%;width:fit-content}
   .msg.working{display:flex;align-items:center;gap:9px;color:var(--mut)}
   .msg.working .spin{flex:none;width:15px;height:15px;border:2px solid var(--line-2);border-top-color:var(--coral);border-radius:50%;animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
