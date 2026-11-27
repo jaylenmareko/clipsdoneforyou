@@ -44,6 +44,6 @@ module.exports = async (req, res) => {
     res.status(200).json({ url: session.url });
   } catch (e) {
     console.error('checkout_error:', e.message);
-    res.status(502).json({ error: 'stripe_error', detail: e.message }); // TEMP: surface Stripe error for the live flip
+    res.status(502).json({ error: 'stripe_error' });
   }
 };
