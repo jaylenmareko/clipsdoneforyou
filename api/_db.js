@@ -97,6 +97,9 @@ function ensureSchema() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS dfy_purchased boolean NOT NULL DEFAULT false;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS past_due boolean NOT NULL DEFAULT false;
+      -- Paddle Billing (merchant of record; replaces Stripe)
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS paddle_customer_id text;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS paddle_subscription_id text;
       -- per-channel conversations: every message belongs to one conversation
       -- ('all' = All channels, or 'platform:handle' = a channel). Existing rows
       -- migrate to 'all' via the default.

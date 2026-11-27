@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
 <style>
   :root{
     --ink:#0d0f14; --ink-2:#1b202a; --mut:#5e6672; --mut-2:#8b929d;
@@ -1461,16 +1462,36 @@
       if(planKey(b.dataset.plan)===plan){var tag=document.createElement('span');tag.className='curtag';tag.textContent='Current plan';b.closest('.billplan').querySelector('b').appendChild(tag);}
     });
   }
+  // ---- Paddle Billing checkout (Paddle.js overlay) ----
+  var paddleReady=false;
+  function initPaddle(){
+    if(paddleReady||!window.Paddle||!S||!S.paddle||!S.paddle.token)return false;
+    try{
+      if(S.paddle.environment)Paddle.Environment.set(S.paddle.environment);
+      Paddle.Initialize({token:S.paddle.token,eventCallback:function(ev){
+        if(ev&&ev.name==='checkout.completed'){
+          // the plan flips server-side via the webhook — poll our state to reflect it
+          var tries=0,iv=setInterval(function(){tries++;refreshState().then(function(){renderBilling();renderFreePill();if((S&&S.user&&S.user.plan&&S.user.plan!=='free')||tries>=12)clearInterval(iv);}).catch(function(){if(tries>=12)clearInterval(iv);});},3000);
+        }
+      }});
+      paddleReady=true;
+    }catch(e){return false;}
+    return true;
+  }
   $$('[data-plan]',app).forEach(function(b){b.addEventListener('click',function(){
     if(planKey(b.dataset.plan)===(S&&S.user&&S.user.plan))return;
-    var orig=b.textContent;b.textContent='Opening…';b.disabled=true;
-    api('/api/checkout','POST',{plan:b.dataset.plan}).then(function(res){
-      b.disabled=false;b.textContent=orig;
-      if(res.data&&res.data.url){window.location.href=res.data.url;return;}
-      var state=$('#billState');
-      if(res.data&&res.data.error==='not_configured')state.textContent='Checkout isn’t switched on yet — Stripe keys are missing. (Plans don’t change until that’s set up.)';
-      else state.textContent='Could not start checkout — please try again.';
-    }).catch(function(){b.disabled=false;b.textContent=orig;});
+    var state=$('#billState');
+    if(!S||!S.paddle||!S.paddle.token){if(state)state.textContent='Checkout isn’t switched on yet — billing isn’t configured. (Plans don’t change until that’s set up.)';return;}
+    initPaddle();
+    var priceId=S.paddle.prices&&S.paddle.prices[b.dataset.plan];
+    if(!priceId||!window.Paddle){if(state)state.textContent='Could not open checkout — please try again.';return;}
+    try{
+      Paddle.Checkout.open({
+        items:[{priceId:priceId,quantity:1}],
+        customData:{user_id:S.user.id},
+        customer:S.user.email?{email:S.user.email}:undefined
+      });
+    }catch(e){if(state)state.textContent='Could not open checkout — please try again.';}
   });});
 
   // =========================================================

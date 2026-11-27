@@ -5,6 +5,7 @@ const { q, configured } = require('./_db');
 const { getUser } = require('./_auth');
 const provider = require('./_provider');
 const journey = require('./_journey');
+const paddle = require('./_paddle');
 
 module.exports = async (req, res) => {
   if (!configured()) { res.status(200).json({ authenticated: false, configured: false }); return; }
@@ -117,6 +118,7 @@ module.exports = async (req, res) => {
       sourceStatus: sourceStatus,
       sourceError: sourceError,
       watches: watches,
+      paddle: paddle.clientConfig(),
     });
   } catch (e) {
     res.status(500).json({ error: 'server_error' });
