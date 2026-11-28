@@ -2,14 +2,15 @@
 // webhook and surfaced to the client (via /api/me) for Paddle.js checkout.
 // Underscore-prefixed = helper, not a Vercel serverless function.
 //
-// These are the SANDBOX prices in the ClipsDoneForYou Paddle account
-// (seller 164526, product pro_01m8fbgnej530ccv34dntdtap7). Override via env
-// (PADDLE_PRICE_SOLO / _MULTI / _DFY) for production without touching this file.
+// These are the LIVE prices in the ClipsDoneForYou Paddle account
+// (seller 164526, live product pro_01m8ffx8cwxfe7y83g354vk2md). Override via env
+// (PADDLE_PRICE_SOLO / _MULTI / _DFY) without touching this file; point back at
+// the sandbox prices for local testing. Live keys/env live in Vercel.
 
 const PRICES = {
-  solo: process.env.PADDLE_PRICE_SOLO || 'pri_01m8fbh72keeb2h5jhrk2ak5gw',   // $19/mo recurring
-  multi: process.env.PADDLE_PRICE_MULTI || 'pri_01m8fbhkety41msttjy5tw57rj',  // $39/mo recurring
-  dfy: process.env.PADDLE_PRICE_DFY || 'pri_01m8fbj495cgxa6h03d7j2vvz6',      // $299 one-time
+  solo: process.env.PADDLE_PRICE_SOLO || 'pri_01m8ffxs9hdayrwdbx9m4xb7xk',   // $19/mo recurring (LIVE)
+  multi: process.env.PADDLE_PRICE_MULTI || 'pri_01m8ffy210xgqnda92vxjenn20',  // $39/mo recurring (LIVE)
+  dfy: process.env.PADDLE_PRICE_DFY || 'pri_01m8ffyhj7q7bcj7zt6cx9xq6q',      // $299 one-time (LIVE)
 };
 
 // price ID -> the plan we store (solo/multi recurring, dfy one-time)
