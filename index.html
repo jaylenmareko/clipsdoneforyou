@@ -1471,7 +1471,8 @@
   function initPaddle(){
     if(paddleReady||!window.Paddle||!S||!S.paddle||!S.paddle.token)return false;
     try{
-      if(S.paddle.environment)Paddle.Environment.set(S.paddle.environment);
+      // Paddle.js only accepts 'sandbox' here; production is the default (no call).
+      if(S.paddle.environment==='sandbox')Paddle.Environment.set('sandbox');
       Paddle.Initialize({token:S.paddle.token,eventCallback:function(ev){
         if(ev&&ev.name==='checkout.completed'){
           // the plan flips server-side via the webhook — poll our state to reflect it
